@@ -1,6 +1,6 @@
 
 # ERP+WMS+TMS 合并报表权限管理模块
-> 项目地址：(https://github.com/disk12321/erp-wms-tms-permission)  
+> 项目地址：(https://github.com/disk123213/ERP-WMS-TMS)  
 > 文档版本：v1.0.0  
 > 最后更新：2024-10-30  
 > 开发团队：ERP财务核心组  
