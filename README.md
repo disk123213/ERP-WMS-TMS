@@ -1,5 +1,4 @@
-豆包:
-# ERP+WMS+TMS 合并报表权限管理模块
+# ERP+WMS+TMS
 > 项目地址：[github.com/your-username/erp-wms-tms-permission](https://github.com/your-username/erp-wms-tms-permission)  
 > 文档版本：v1.0.0  
 > 最后更新：2024-10-30  
@@ -2299,5 +2298,6 @@ CSV归档文件采用标准化格式，便于Excel打开和审计工具解析，
 本模块不仅是一个技术解决方案，更是企业财务合规与数据安全的“守护神”。我们将持续关注企业数字化转型中的权限管理痛点，通过技术创新为企业提供更安全、高效、智能的权限治理服务。  
 
 欢迎社区贡献代码、提出建议，共同推动项目迭代升级！
+
 
 
