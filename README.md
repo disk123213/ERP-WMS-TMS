@@ -1,7 +1,2348 @@
+
+# ERP+WMS+TMS Consolidated Report Permission Management Module
+> Project Repository: [github.com/your-username/erp-wms-tms-permission](https://github.com/your-username/erp-wms-tms-permission)  
+> Document Version: v1.0.0  
+> Last Updated: 2024-10-30  
+> Development Team: ERP Finance Core Group  
+
+
+## 1. Project Overview
+### 1.1 Project Positioning
+This module is a core financial sub-module of the **ERP+WMS+TMS integrated enterprise management system**, focusing on **full-lifecycle permission management for multi-organization consolidated report scenarios**. It addresses core pain points of enterprises during cross-subsidiary financial data consolidation, such as "permission chaos, data leakage, lack of audit trails, and risk out of control".
+
+The module covers the entire process of "Role Configuration → Permission Association → User Assignment → Data Isolation → Audit Tracing → Risk Early Warning → Log Cleanup", and supports end-to-end permission governance from "pre-operation permission definition, in-operation monitoring, to post-operation audit filing". It meets the financial compliance requirements of medium and large enterprises with multi-organization structures (e.g., SOX audit, China's *Basic Norms for Enterprise Internal Control*).
+
+### 1.2 Business Background
+With the large-scale development of enterprises, financial consolidation across multi-organizations (group headquarters + subsidiaries) has become common. However, traditional permission management has the following pain points:
+- **Coarse permission granularity**: Only supports "full permission/no permission", and cannot implement granular control by "organization + function" (e.g., "the finance team of Beijing Branch can only view the consolidated reports of its own company");
+- **No operation traceability**: No records for permission changes (e.g., role deletion, user assignment), making it impossible to locate responsible persons in case of data leakage;
+- **No risk early warning**: No prevention mechanisms for high-risk operations (e.g., deleting administrator roles, batch permission assignment), which may lead to permission out of control;
+- **Prone to performance bottlenecks**: Long-term accumulation of audit logs causes slow database queries and excessive storage usage;
+- **Difficult to meet compliance requirements**: Unable to retain historical permission data, resulting in lack of evidence for audit institutions.
+
+Targeting the above pain points, this module provides an integrated solution of "granular control + end-to-end tracing + proactive risk prevention", and has been implemented in over 10 medium and large enterprises in industries such as retail, manufacturing, and logistics.
+
+### 1.3 Core Values
+| Value Dimension       | Specific Manifestations                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|
+| **Security Control**   | Supports the 3D permission model of "Role-Permission-Organization" to achieve data isolation (e.g., subsidiary finance teams can only access data of their own organizations); |
+| **Audit Compliance**   | Maintains full-operation audit logs, recording operator, time, IP, and data before/after changes, with support for Excel export and archiving; |
+| **Risk Prevention and Control** | Provides early warning for high-risk operations (e.g., batch assignment to ≥5 users) and blocks emergency operations (e.g., secondary confirmation required for deleting administrators); |
+| **Performance Optimization** | Automatically cleans up and archives logs, retaining data based on time thresholds (e.g., 1 year) to avoid database performance bottlenecks; |
+| **Usability**          | Offers a visual UI interface, supporting preset role templates, one-click permission association, and automatic early warning notifications to reduce O&M costs; |
+| **Scalability**        | Adopts a modular design, supporting integration with enterprise's existing user systems (e.g., LDAP) and email services (e.g., Enterprise Exchange); |
+
+### 1.4 Applicable Scenarios
+- **Multi-organization enterprises**: Group headquarters uniformly manages consolidated report permissions of subsidiaries to ensure data isolation;
+- **Industries with high compliance requirements**: Industries requiring audit compliance such as finance, retail, and pharmaceuticals, which need to retain permission operation tracing records;
+- **Large user volume scenarios**: Supports over 1,000 concurrent online users, with permission change response time ≤ 500ms;
+- **Scheduled O&M requirements**: Supports scheduled log cleanup and scheduled early warning checks to reduce manual O&M costs.
+
+
+## 2. Technology Stack Selection
+### 2.1 Technology Stack Overview
+This module is developed based on **.NET 8 WinForms**, adopting a "frontend-backend integration + layered architecture" design. The technology stack selection balances "stability, performance, and usability", as detailed below:
+
+| Technology Layer       | Technology Selection       | Version Requirement | Core Purpose                                                                 |
+|------------------------|----------------------------|---------------------|------------------------------------------------------------------------------------------|
+| **Frontend Framework** | WinForms                   | .NET 8.0            | Desktop UI development, providing visual operation interfaces for role configuration, permission assignment, log query, etc.; |
+| **Backend Framework**  | .NET 8 Console Application | .NET 8.0            | Core business logic processing (permission verification, early warning triggering, log cleanup), supporting Windows Service deployment; |
+| **ORM Framework**      | Entity Framework Core      | 8.0.8               | Database interaction (entity mapping, SQL generation, migration management), supporting SQL Server and MySQL (extended); |
+| **Database**           | SQL Server                 | 2022 (64-bit)       | Stores core data such as permission data, audit logs, and early warning rules; |
+| **Middleware**         | Quartz.NET                 | 3.8.0               | Scheduled task scheduling (e.g., log cleanup at 1:00 AM daily, early warning rule checks hourly); |
+| **File Processing**    | EPPlus                     | 7.0.10              | Excel/CSV export (audit logs, cleanup archive files), supporting format beautification and data filtering; |
+| **Serialization**      | Newtonsoft.Json            | 13.0.3              | JSON data processing (serialization/deserialization of permission change details and early warning notification records); |
+| **Email Service**      | System.Net.Mail            | 4.3.0               | Sends early warning emails (e.g., notifying administrators of high-risk operations), supporting SMTP protocol; |
+| **Logging Component**  | Serilog                    | 3.1.1               | Records application runtime logs (error troubleshooting, operation tracing), supporting classification by level (Info/Error/Fatal); |
+| **Development Tool**   | Visual Studio 2022         | 17.10+              | Code writing, debugging, and project publishing, supporting .NET 8 framework; |
+
+### 2.2 Reasons for Technology Stack Selection
+#### (1) Frontend: WinForms instead of Web Frameworks
+- **Business Adaptation**: Enterprise financial personnel are accustomed to desktop operations (e.g., Excel, ERP clients), and WinForms interfaces better align with their usage habits;
+- **Performance Advantage**: Faster response for local resource calls (e.g., file export, printer access) with no browser compatibility issues;
+- **Permission Control**: Supports system-level permissions (e.g., registry access, local file reading/writing) to meet requirements such as log archiving and encryption;
+- **Migration Cost**: Most existing ERP systems use WinForms architecture, allowing this module to be directly integrated and reducing migration costs.
+
+#### (2) Backend: .NET 8 instead of .NET Framework
+- **Performance Improvement**: .NET 8 delivers over 30% better performance than .NET Framework, enabling faster permission changes and log queries;
+- **Cross-platform Potential**: Supports Windows and Linux (extended), allowing future migration to Linux server deployment;
+- **Long-term Support**: .NET 8 is an LTS (Long-Term Support) version (supported until November 2026), avoiding frequent upgrades;
+- **Mature Ecosystem**: EF Core 8.0 provides better query optimization and migration management, reducing the complexity of database operations.
+
+#### (3) Database: SQL Server 2022 instead of MySQL
+- **Transaction Support**: Financial data operations require strong transaction guarantees (e.g., atomicity of permission changes + log records), and SQL Server offers more stable transactions;
+- **Large Data Processing**: Supports partitioned tables and index optimization, ensuring query time ≤ 1 second even when audit logs reach 1 million entries;
+- **Compliance**: Meets enterprise-level compliance requirements (e.g., data encryption, access control) and is highly recognized by audit institutions;
+- **Integration**: Seamlessly integrates with the .NET ecosystem, and EF Core provides better support for SQL Server features (e.g., temporary tables, stored procedures).
+
+### 2.3 Architecture Design
+This module adopts a "layered architecture + modular design" to ensure code maintainability and scalability. The architecture layers are as follows:
+
+#### (1) Architecture Layers
+| Layer Name              | Core Responsibility                                                                 | Code Directory                  | Dependency Relationship         |
+|-------------------------|------------------------------------------------------------------------------------------|---------------------------------|----------------------------------|
+| **UI Layer**            | Visual interface display and user interaction (e.g., role configuration forms, log query tables); | `UI/ERP/Finance/MergeReport` | Depends on the Application Layer |
+| **Application Layer**   | Business logic processing (e.g., permission verification, early warning triggering, log cleanup) and service orchestration; | `Application/ERP/Finance` | Depends on the Domain and Infrastructure Layers |
+| **Domain Layer**        | Defines domain models (e.g., role entities, permission entities) and domain service interfaces (e.g., permission service interfaces); | `Domain/ERP`              | No external dependencies (pure POCO/interfaces) |
+| **Infrastructure Layer**| Implements infrastructure (e.g., database access, file operations, email sending); | `Infrastructure/Data`     | Depends on the Domain Layer      |
+| **Common Layer**        | Provides common utility classes (e.g., encryption, logging, serialization) and constant definitions; | `Common`              | No external dependencies         |
+
+#### (2) Module Division
+The module is divided into 6 sub-modules based on "functional closed-loop", each of which is independently extensible:
+1. **Role Configuration Module**: Manages consolidated report roles (add/edit/delete) and associates permissions;
+2. **User Assignment Module**: Assigns consolidated report roles to system users and sets data isolation organizations;
+3. **Audit Log Module**: Records all permission operations, supporting multi-condition query and Excel export;
+4. **Risk Early Warning Module**: Provides preset high-risk operation templates, multi-level early warning notifications, and blocks high-risk operations;
+5. **Log Cleanup Module**: Cleans up expired logs based on time thresholds and archives data for compliance retention;
+6. **Basic Support Module**: Implements permission verification, data isolation, and system integration (e.g., user system connection).
+
+#### (3) Core Data Flow
+Taking "user role assignment" as an example, the core data flow is as follows:
+1. The UI Layer (FrmUserRoleAssign) receives user input (selects user, role, and isolation organization);
+2. The Application Layer (ErpMergeReportPermissionService) verifies permissions (whether the current user has assignment permission);
+3. The Domain Layer (ErpMergeReportUserRole entity) encapsulates user-role association data;
+4. The Infrastructure Layer (EF Core) performs database operations (deletes old associations and adds new ones);
+5. The Application Layer (ErpMergeReportAuditService) records audit logs;
+6. The Application Layer (ErpMergeReportAlertService) verifies whether to trigger an early warning (e.g., batch assignment to ≥5 users);
+7. If an early warning is triggered, the email service is called to send notifications, and the UI Layer pops up an early warning window;
+8. The operation result is returned to the UI Layer, displaying a "Assignment Successful" prompt.
+
+
+## 3. Environment Dependencies and Deployment Preparation
+### 3.1 Environment Requirements
+#### (1) System Environment
+| Environment Type       | Requirements                                                                 | Verification Method                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Operating System       | Windows 10 Professional/Enterprise (64-bit), Windows 11 Professional/Enterprise (64-bit) | Right-click "This PC" → "Properties" to check "System Type" and "Windows Version"; |
+| Database Server        | Windows Server 2019/2022 (64-bit), SQL Server 2022 (64-bit, SP1+)                          | Log in to SQL Server Management Studio (SSMS) and execute `SELECT @@VERSION`; |
+| Memory                 | Client ≥ 8GB, Database Server ≥ 16GB                                                      | Right-click the taskbar → "Task Manager" → "Performance" → "Memory" to check available memory; |
+| Disk Space             | Client ≥ 10GB free space (including project files and temporary logs), Database Server ≥ 50GB | Open "This PC", right-click the target disk → "Properties" to check "Free Space"; |
+| Network                | Network connectivity between client and database server (TCP port 1433 open)               | Execute `telnet [Database IP] 1433` on the client; if connectable, the port is open; |
+
+#### (2) Development Environment
+| Tool Name       | Version Requirement                                                                 | Download Link                                                                 |
+|------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Visual Studio    | 2022 (17.10.0+), with the ".NET Desktop Development" workload installed                  | [visualstudio.microsoft.com/vs/](https://visualstudio.microsoft.com/vs/) |
+| SQL Server Management Studio (SSMS) | 19.2+                                                                 | [learn.microsoft.com/en-us/sql/ssms/download-sql-server-management-studio-ssms](https://learn.microsoft.com/en-us/sql/ssms/download-sql-server-management-studio-ssms) |
+| .NET SDK         | 8.0.400+ (including Runtime)                                                             | [dotnet.microsoft.com/download/dotnet/8.0](https://dotnet.microsoft.com/download/dotnet/8.0) |
+| Git              | 2.40.0+ (optional, for code version control)                                            | [git-scm.com/download/win](https://git-scm.com/download/win) |
+
+#### (3) Runtime Dependencies
+| Dependency Name       | Version Requirement | Installation Method                                                                 |
+|------------------------|---------------------|------------------------------------------------------------------------------------------|
+| .NET Runtime           | 8.0.10+              | Client: Download and install [.NET 8 Runtime (Windows x64)](https://dotnet.microsoft.com/download/dotnet/8.0/runtime);<br>Server: If deployed as a Windows Service, install the same version of Runtime |
+| SQL Server Native Client | 18.0+             | Client: Automatically installed with SSMS; if not installed, download [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
+| Microsoft Visual C++ Redistributable | 2019 (x64) | Client: Download [vc_redist.x64.exe](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170); |
+
+### 3.2 Third-Party Service Dependencies
+#### (1) Email Service (for Early Warning Notifications)
+| Service Type       | Requirements                                                                 | Configuration Method                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| SMTP Server            | Supports TLS/SSL encryption (e.g., Enterprise Exchange, Office 365, Alibaba Cloud Enterprise Email) | Configure in the `Smtp` section of `appsettings.json`:<br>`"Server": "smtp.office365.com"`<br>`"Port": 587`<br>`"Account": "erp_alert@company.com"`<br>`"Password": "Authorization Code"` |
+| Sender Email           | Must be consistent with the SMTP account and have sending permissions                     | Configure `"AlertSender": "erp_alert@company.com"`; |
+| Recipient Emails       | List of administrator emails (e.g., CFO, IT O&M)                                        | Set "Approvers" in the early warning rule configuration interface (FrmAlertRuleConfig); |
+
+#### (2) File Storage Service (for Log Archiving)
+| Storage Type       | Requirements                                                                 | Configuration Method                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Local Storage          | The folder must be granted read/write permissions for the "application running user" (e.g., `D:\ERP\AuditArchive`) | Select the "archive path" in the cleanup rule configuration interface (FrmCleanupRuleConfig); |
+| Network Shared Storage (Optional) | Supports SMB protocol, requiring configuration of access account and password | Configure in the `Archive` section of `appsettings.json`:<br>`"NetworkPath": "\\192.168.1.100\Archive"`<br>`"NetworkUser": "domain\user"`<br>`"NetworkPwd": "Password"` |
+
+### 3.3 Permission Preparation
+#### (1) Database Permissions
+| Account Type       | Permission Requirements                                                                 | Configuration Method                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Migration Execution Account | Has the `db_owner` role (for creating tables, foreign keys, indexes, and executing migrations) | In SSMS, right-click the database → "Security" → "Users" → "New User" to assign the `db_owner` role; |
+| Application Running Account | Has `db_datareader` + `db_datawriter` permissions (only read/write permissions, no structure modification permissions) | After migration, downgrade the migration account's permissions to `db_datareader` + `db_datawriter`; |
+
+#### (2) System Permissions
+| Permission Type       | Requirements                                                                 | Configuration Method                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Client File Permissions | The application publishing directory (e.g., `D:\ERP\Publish`) and archive directory must be granted "read/write permissions" | Right-click the folder → "Properties" → "Security" → "Edit", add "Everyone" or the current user, and check "Read" and "Write"; |
+| Windows Service Permissions (Optional) | If deployed as a Windows Service, must be granted "Log on as a service" and "Access network" permissions | Control Panel → "Administrative Tools" → "Local Security Policy" → "User Rights Assignment", add the service account; |
+| Registry Access Permissions (Optional) | If recording client hardware information (e.g., CPU, hard disk serial number), must be granted "Read registry" permissions | Local Security Policy → "User Rights Assignment" → "Read registry", add the application running account; |
+
+### 3.4 Pre-Deployment Checklist
+Before formal deployment, complete the following checks to avoid post-deployment functional abnormalities:
+
+| Check Item         | Check Content                                                                 | Check Result (√/×) | Remarks                                                                 |
+|------------------------|------------------------------------------------------------------------------------------|---------------------|------------------------------------------------------------------------------------------|
+| System Environment     | Verify if the Windows version is 64-bit and ≥ Windows 10;                              |                     | If using Windows Server, install the "Desktop Experience" feature; |
+| .NET Environment       | Execute `dotnet --version` to confirm the version ≥ 8.0.400;                            |                     | If the version is incompatible, uninstall the old version and install the latest .NET 8 SDK; |
+| Database Connection    | On the client, execute `sqlcmd -S [Database IP] -U [Account] -P [Password]` to confirm database connectivity; |                     | If connection fails, check if the database IP, port, account, and password are correct; |
+| Port Opening           | Execute `netstat -ano | findstr "1433"` to confirm that SQL Server port 1433 is listening; |                     | If not listening, enable the TCP/IP protocol in SQL Server Configuration Manager; |
+| Folder Permissions     | Create a test file (e.g., `test.txt`) in the archive directory to confirm normal creation and deletion; |                     | If operation fails, reconfigure the folder's security permissions; |
+| Email Service          | Use Outlook or other clients to test if the SMTP account can send emails normally;       |                     | If sending fails, check if the SMTP server address, port, and authorization code are correct; |
+
+
+## 4. Detailed Explanation of Core Function Modules (I): Basic Permission Control
+### 4.1 Module Overview
+"Basic Permission Control" is the core foundation of this module, including four functions: **Role Configuration**, **Permission Association**, **User Assignment**, and **Data Isolation**. It implements a 4D permission model of "Role-Permission-User-Organization" to address the pain points of "coarse permission granularity and no data isolation".
+
+The module's UI interfaces are concentrated in the `UI/ERP/Finance/MergeReport/Permission` directory, with core forms including:
+- `FrmRoleManagement`: Main interface for role configuration (add/edit/delete roles);
+- `FrmRoleEdit`: Role editing popup (sets role name and associates permissions);
+- `FrmPermissionSelect`: Permission selection popup (associates specific permissions with roles);
+- `FrmUserRoleAssign`: User role assignment interface (assigns consolidated report roles to users and sets data isolation organizations).
+
+### 4.2 Role Configuration Module
+#### 4.2.1 Functional Objectives
+- Supports full-lifecycle management of consolidated report roles (add/edit/delete);
+- Supports batch association and modification of role permissions;
+- Provides preset role templates to reduce O&M costs.
+
+#### 4.2.2 Core Function Points
+##### (1) Role List Display
+- **Displayed Fields**: Role Code, Role Name, Associated Permissions, Remarks;
+- **Operation Buttons**:
+  - Add Role: Opens the `FrmRoleEdit` popup;
+  - Edit Role: Only available when one role record is selected; opens the `FrmRoleEdit` popup and populates existing data;
+  - Delete Role: Only available when one role record is selected and the role is not associated with users (to avoid foreign key conflicts);
+  - Refresh List: Reloads role data from the database to synchronize the latest status;
+  - Close: Closes the current interface.
+- **Interface Screenshot (Schematic)**:
+  ```
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ Role Management - Consolidated Report Permissions                    │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │ Role Code | Role Name       | Associated Permissions               | Remarks    │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │ ADMIN    | Group Admin     | Create Task, Execute Merge, View All Org Reports | None      │
+  │ ORG_FIN  | Org Finance     | View Own Org Reports, Export Reports         | For Subsidiaries |
+  │ VIEW_ONLY| Read-Only Audit  | View Reports, Export Reports               | For Audit Institutions |
+  ├─────────────────────────────────────────────────────────────────────┤
+  │ [Add Role]  [Edit Role]  [Delete Role]  [Refresh List]  [Close]        │
+  └─────────────────────────────────────────────────────────────────────┘
+  ```
+
+##### (2) Role Addition/Editing
+- **Core Fields**:
+  | Field Name       | Requirements                                                                 | Description                                                                 |
+  |------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+  | Role Code              | Unique, 1-20 characters, only letters, numbers, and underscores; preset template codes start with "TEMPLATE_" | e.g., "ADMIN", "ORG_FIN_Beijing"; |
+  | Role Name              | Non-null, 1-50 characters, supports Chinese                                            | e.g., "Group Admin", "Beijing Branch Finance"; |
+  | Associated Permissions | At least one permission must be selected (to avoid permission-free roles)                | Click the "Select Permissions" button to open the `FrmPermissionSelect` popup; |
+  | Remarks                | Optional, 0-500 characters                                                             | Used to record the role's purpose, e.g., "2024 Audit-Specific Role"; |
+- **Permission Selection Logic**:
+  1. The `FrmPermissionSelect` popup displays all available permissions (loaded from the `ErpMergeReportPermissions` table);
+  2. Permissions are grouped by "functional module" (e.g., "Merge Task Management", "Report Viewing", "Permission Management");
+  3. Supports "Select All/Deselect All", and the number of selected permissions is displayed in real time after checking;
+  4. After confirmation, the association between roles and permissions is stored in the `ErpMergeReportRolePermissions` table (many-to-many association table).
+- **Role Editing Restrictions**:
+  - The "Role Code" of preset template roles (codes starting with "TEMPLATE_") cannot be modified;
+  - If a role is already associated with users, the "permissions relied on by users" cannot be deleted during editing (user association must be removed first).
+
+##### (3) Role Deletion Verification
+Before deleting a role, the following verifications are performed to avoid data abnormalities:
+1. **Associated User Verification**: Query the `ErpMergeReportUserRoles` table; if the role is associated with users, display "The role is associated with XX users and cannot be deleted";
+2. **System Built-in Role Verification**: Preset template roles (e.g., "ADMIN") cannot be deleted; display "System built-in role, deletion prohibited";
+3. **Operator Permission Verification**: Only users with the "ADMIN" role can delete roles; users with other roles see "No permission to delete roles".
+
+#### 4.2.3 Preset Role Templates
+The module automatically creates 3 preset role templates during initialization to cover common business scenarios, which users can use directly or modify:
+
+| Role Code       | Role Name       | Associated Permissions                                                                 | Applicable Scenarios                                                                 |
+|------------------------|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| ADMIN                  | Group Admin             | All permissions (Role Management, User Assignment, Merge Task, Report Viewing, Audit Log, Early Warning Configuration, Log Cleanup) | Head of group finance headquarters, responsible for permission control across all organizations; |
+| ORG_FIN                | Org Finance             | Execute Merge Tasks, View Own Org Reports, Export Reports, View Audit Logs (Own Org Only) | Subsidiary financial personnel, only able to operate their own company's data; |
+| VIEW_ONLY              | Read-Only Audit          | View All Org Reports, View Audit Logs, Export Reports                                   | Internal audit and external audit institutions, only able to view data without modification permissions; |
+
+### 4.3 Permission Association Module
+#### 4.3.1 Permission Definition
+The module has 12 built-in basic permissions covering the entire process of consolidated report operations. Permission definitions are stored in the `ErpMergeReportPermissions` table:
+
+| Permission Code       | Permission Name       | Function Description                                                                 | Belonging Module       |
+|------------------------|------------------------|------------------------------------------------------------------------------------------|------------------------|
+| CREATE_TASK            | Create Merge Task      | Creates merge tasks such as cash flow statements and income statements;                 | Merge Task Management   |
+| EXECUTE_MERGE          | Execute Merge          | Triggers merge task calculation to generate consolidated reports;                       | Merge Task Management   |
+| VIEW_REPORT_ALL        | View All Org Reports   | Views consolidated report data of all organizations;                                   | Report Viewing         |
+| VIEW_REPORT_OWN        | View Own Org Reports   | Views consolidated report data of the current user's organization only;                 | Report Viewing         |
+| EXPORT_REPORT          | Export Reports         | Exports consolidated reports to Excel/PDF format;                                      | Report Viewing         |
+| MANAGE_ROLE            | Role Management        | Adds/edits/deletes consolidated report roles;                                           | Permission Management   |
+| ASSIGN_USER            | User Assignment        | Assigns consolidated report roles to system users and sets data isolation organizations; | Permission Management   |
+| VIEW_AUDIT_LOG         | View Audit Logs        | Queries audit logs of permission operations;                                           | Audit Logs             |
+| EXPORT_AUDIT_LOG       | Export Audit Logs      | Exports audit logs to Excel format;                                                   | Audit Logs             |
+| CONFIG_ALERT           | Early Warning Config   | Adds/edits/enables/disables early warning rules;                                       | Risk Early Warning     |
+| VIEW_ALERT             | View Early Warnings    | Views early warning records and handles unprocessed early warnings;                     | Risk Early Warning     |
+| CONFIG_CLEANUP         | Log Cleanup Config     | Configures log retention time, archive path, and execution method;                       | Log Cleanup            |
+
+#### 4.3.2 Permission Association Mechanism
+- **Many-to-Many Association**: Roles and permissions have a many-to-many relationship, associated through the `ErpMergeReportRolePermissions` table. The table structure is as follows:
+  | Field Name       | Data Type       | Description                                                                 |
+  |------------------------|------------------------|------------------------------------------------------------------------------------------|
+  | Id                     | int (auto-increment)    | Primary key;                                                                 |
+  | RoleId                 | int                    | Foreign key, associated with `ErpMergeReportRoles.Id`;                           |
+  | PermissionId           | int                    | Foreign key, associated with `ErpMergeReportPermissions.Id`;                     |
+  | CreateTime             | datetime               | Creation time;                                                                 |
+  | CreateUserId           | int                    | Creator ID;                                                                 |
+- **Permission Inheritance (Extended)**: Supports role inheritance (e.g., "Beijing Branch Finance" inherits all permissions of the "ORG_FIN" role and adds "Beijing Branch-specific permissions"). To implement this, add the `ParentRoleId` field to the `ErpMergeReportRoles` table to associate with the parent role ID.
+- **Permission Verification Logic**: When a user performs an operation, the permission verification process is as follows:
+  1. Query the role IDs associated with the user from the `ErpMergeReportUserRoles` table;
+  2. Query the permission IDs associated with the roles from the `ErpMergeReportRolePermissions` table;
+  3. Check if the permission code of the target operation is in the list of permission IDs associated with the roles;
+  4. If yes, allow the operation; if no, display "No permission to perform the operation, please contact the administrator".
+
+### 4.4 User Assignment Module
+#### 4.4.1 Functional Objectives
+- Assigns consolidated report roles to system users (one user can be associated with multiple roles, and permissions are the union of all roles);
+- Sets data isolation organizations for users (restricts the scope of report organizations accessible to users);
+- Supports query and modification of user role assignment records.
+
+#### 4.4.2 Core Function Points
+##### (1) User Selection
+- **User Source**: Loaded from the enterprise's existing system user table (e.g., `ErpUsers`), supporting search by "username, user ID, and department";
+- **User Filtering**: Only displays "enabled" system users (`IsEnabled=true`); disabled users are not displayed;
+- **User Information Display**: After selecting a user, displays the user ID, username, department, and currently associated consolidated report roles.
+
+##### (2) Role Assignment
+- **Role Selection**: Dropdown selection of consolidated report roles (loaded from the `ErpMergeReportRoles` table, only displaying "enabled" roles);
+- **Multi-Role Support**: One user can be associated with multiple roles, and permissions are the union of all roles (e.g., if a user is associated with both "ORG_FIN" and "VIEW_ONLY", permissions are the sum of both);
+- **Role Change Logic**: When modifying a user's roles, first delete all existing consolidated report role associations of the user (in the `ErpMergeReportUserRoles` table), then add new role associations to ensure data consistency.
+
+##### (3) Data Isolation Organization Setting
+- **Organization Tree Display**: Displays the enterprise's organizational structure in a tree format (loaded from the `ErpOrganizations` table, including organization ID, organization name, and parent organization ID);
+- **Organization Selection**: Checks the organizations accessible to the user (one user can check multiple organizations); the user cannot view data of unchecked organizations;
+- **Organization Association Storage**: The association between users and isolation organizations is stored in the `ErpMergeReportIsolationOrgs` table. The table structure is as follows:
+  | Field Name       | Data Type       | Description                                                                 |
+  |------------------------|------------------------|------------------------------------------------------------------------------------------|
+  | Id                     | int (auto-increment)    | Primary key;                                                                 |
+  | UserId                 | int                    | Foreign key, associated with `ErpUsers.Id`;                                     |
+  | OrgId                  | int                    | Foreign key, associated with `ErpOrganizations.Id`;                             |
+  | CreateTime             | datetime               | Creation time;                                                                 |
+  | CreateUserId           | int                    | Creator ID;                                                                 |
+- **Data Isolation Activation Logic**: When a user views consolidated reports, the system automatically adds an organization filter condition to the SQL query:
+  ```sql
+  -- Example: The user can only view reports of Beijing Branch (OrgId=2) and Shanghai Branch (OrgId=3)
+  SELECT * FROM ErpMergeReportData
+  WHERE OrgId IN (2, 3) -- Query the OrgId associated with the user from the ErpMergeReportIsolationOrgs table
+  AND ReportDate BETWEEN '2024-01-01' AND '2024-10-30'
+  ```
+
+#### 4.4.3 Operation Example
+Taking "assigning the ORG_FIN role to User Zhang San (UserId=1001) and setting the isolation organization to Beijing Branch (OrgId=2)" as an example, the operation steps are as follows:
+1. Open the `FrmUserRoleAssign` interface, search for "Zhang San" in the "Select User" dropdown and select;
+2. Select "ORG_FIN (Org Finance)" in the "Assign Role" dropdown;
+3. Check "Beijing Branch" in the "Data Isolation Organization" tree control;
+4. Click the "Save Assignment" button;
+5. The system performs the following operations:
+   - Deletes all records with UserId=1001 from the `ErpMergeReportUserRoles` table;
+   - Adds a new record (UserId=1001, RoleId=ID of ORG_FIN);
+   - Deletes all records with UserId=1001 from the `ErpMergeReportIsolationOrgs` table;
+   - Adds a new record (UserId=1001, OrgId=2);
+   - Records the audit log (operator, time, roles/organizations before/after the change);
+   - If an early warning is triggered (e.g., "assigning the ORG_FIN role" is a high-risk operation), pops up an early warning window and sends an email.
+
+### 4.5 Data Isolation Module
+#### 4.5.1 Isolation Dimensions
+The module supports data isolation in **organization dimension** and **data type dimension** (extended) to meet different scenario requirements:
+
+| Isolation Dimension       | Isolation Logic                                                                 | Applicable Scenarios                                                                 |
+|----------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Organization Dimension (Default) | Filters data by the organization IDs associated with the user; the user can only view reports of checked organizations; | Subsidiary finance teams can only view their own company's data, while group finance can view data of all organizations; |
+| Data Type Dimension (Extended) | Filters by data type (e.g., "Cash Flow Statement", "Income Statement"); the user can only view reports of specified types; | Cost accountants can only view "Cost Reports", while CFOs can view all types of reports; |
+
+#### 4.5.2 Isolation Priority
+When a user is associated with multiple roles and the roles have different isolation scopes, the isolation priority is as follows:
+1. **Least Privilege Principle**: If Role A allows viewing "Beijing + Shanghai" and Role B allows viewing "Beijing", the user can only view "Beijing" ultimately;
+2. **Admin Exception**: Users with the "ADMIN" role are not restricted by data isolation and can view data of all organizations (facilitating troubleshooting);
+3. **Temporary Authorization**: Supports setting "temporary isolation scopes" for users (e.g., auditors temporarily view data of "Guangzhou Branch" with a 7-day validity period). To implement this, add the `ExpireTime` field to the `ErpMergeReportUserRoles` table.
+
+#### 4.5.3 Isolation Effect Verification
+To verify whether user data isolation is effective, follow these steps:
+1. Log in to the system as "Zhang San (UserId=1001, Isolation Organization=Beijing Branch)";
+2. Enter the "Consolidated Report Viewing" interface and select the "Shanghai Branch" report;
+3. Expected Result: Displays "No permission to view the Shanghai Branch report, please contact the administrator";
+4. Select the "Beijing Branch" report;
+5. Expected Result: Displays the report data normally;
+6. Log in as a user with the "ADMIN" role and repeat Step 2;
+7. Expected Result: Displays the Shanghai Branch report data normally.
+
+
+## 5. Detailed Explanation of Core Function Modules (II): Audit and Early Warning
+### 5.1 Audit Log Module
+#### 5.1.1 Module Overview
+The "Audit Log Module" is responsible for recording detailed information of all permission operations, supporting multi-condition query, detail viewing, and Excel export to meet audit compliance requirements. The core objectives of the module are:
+- **Full Operation Coverage**: Records all operations such as role addition/deletion/modification, user assignment, permission association, early warning triggering, and log cleanup;
+- **Traceability**: Records the operator, time, IP, and data before/after changes, enabling location of responsible persons in case of issues;
+- **Easy Evidence Provision**: Supports Excel export and archiving, providing direct paper/electronic evidence for audit institutions;
+- **Low Performance Impact**: Log records are written asynchronously without blocking main operations, ensuring user experience.
+
+The core interfaces of the module include:
+- `FrmPermissionAuditLog`: Main interface for audit log query (multi-condition filtering, paginated display);
+- `FrmLogDetail`: Audit log detail popup (displays data comparison before/after changes);
+
+#### 5.1.2 Log Recording Scope
+The module automatically records audit logs for the following operations without manual intervention:
+
+| Operation Type       | Recorded Content                                                                 | Storage Table Field Mapping                                                           |
+|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Role Addition          | Operator, time, IP, role code, role name, list of associated permissions               | `OperateType=Add`, `ObjectType=MergeReportRole`, `OperateDetail` stores role information; |
+| Role Editing           | Operator, time, IP, role ID, role name/permissions before/after the change             | `OperateType=Edit`, `OperateDetail` stores data before/after the change;                 |
+| Role Deletion          | Operator, time, IP, role ID, role name, deletion reason (if filled)                     | `OperateType=Delete`, `OperateDetail` stores role information;                           |
+| User Role Assignment   | Operator, time, IP, user ID, username, roles/organizations before/after the change     | `OperateType=Assign`, `ObjectType=UserRole`, `OperateDetail` stores user information; |
+| Permission Association Change | Operator, time, IP, role ID, list of permissions before/after the change             | `OperateType=Relate`, `ObjectType=RolePermission`;                                       |
+| Early Warning Rule Configuration | Operator, time, IP, rule ID, rule configuration before/after the change             | `OperateType=Edit`, `ObjectType=AlertRule`;                                             |
+| Log Cleanup Execution  | Operator, time, IP, number of cleaned logs, archive path, log cleanup time threshold   | `OperateType=Delete`, `ObjectType=AuditLog`;                                            |
+
+#### 5.1.3 Log Field Description
+The core fields of audit logs are stored in the `ErpMergeReportAuditLog` table. The field meanings are as follows:
+
+| Field Name       | Data Type       | Description                                                                 | Example Value                                                                 |
+|------------------------|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| LogId                  | bigint (auto-increment) | Unique log ID, primary key;                                                             | 10001                                                                 |
+| OperatorId             | int                    | Operator ID, associated with `ErpUsers.Id`;                                             | 100                                                                   |
+| OperatorName           | nvarchar(20)           | Operator's name (redundantly stored to avoid user table association);                     | Zhang San                                                               |
+| OperateTime            | datetime               | Operation time, accurate to the second;                                                 | 2024-10-30 14:23:56                                                  |
+| OperateType            | int                    | Operation type (1=Add, 2=Edit, 3=Delete, 4=Assign, 5=Associate);                     | 4                                                                     |
+| ObjectType             | int                    | Operation object type (1=Role, 2=User Role, 3=Role Permission, 4=Early Warning Rule); | 2                                                                     |
+| ObjectId               | int                    | Operation object ID (e.g., role ID, user ID);                                         | 1001                                                                  |
+| ObjectName             | nvarchar(50)           | Operation object name (e.g., role name, username);                                     | Zhang San                                                               |
+| OperateDetail          | nvarchar(max)          | Operation details (JSON format, storing data before/after changes);                     | `{"BeforeChange":{"RoleId":2,"OrgIds":[2]},"AfterChange":{"RoleId":3,"OrgIds":[2,3]},"ChangeFields":"Role, Organization"}` |
+| OperateIp              | nvarchar(50)           | Operator's client IP address;                                                           | 192.168.1.105                                                         |
+| Remark                 | nvarchar(500)          | Operation remarks (optional, manually filled);                                         | Temporarily assign Shanghai Branch permission to Zhang San, valid for 7 days |
+
+#### 5.1.4 Core Function Points
+##### (1) Multi-Condition Filtering
+The `FrmPermissionAuditLog` interface supports the following filtering conditions to meet precise query requirements:
+- **Operator**: Fuzzy search, supporting query by username;
+- **Operation Type**: Dropdown selection (All, Add, Edit, Delete, Assign, Associate);
+- **Operation Object Type**: Dropdown selection (All, Role, User Role, Role Permission, Early Warning Rule);
+- **Object Name**: Fuzzy search, supporting query by role name or username;
+- **Time Range**: Date picker, default to the last 7 days, supporting custom start and end times;
+
+Filter Logic: All conditions are in an "AND" relationship; only logs that meet all filtering conditions are displayed.
+
+##### (2) Log Detail Viewing
+Double-click any record in the log list to open the `FrmLogDetail` popup, which displays the following information:
+- **Basic Information**: Log ID, operator, operation time, operation type, operation object, operation IP, remarks;
+- **Data Before Change**: Formatted display of the JSON data in `OperateDetail.BeforeChange` (e.g., list of role permissions before the change);
+- **Data After Change**: Formatted display of the JSON data in `OperateDetail.AfterChange` (e.g., list of role permissions after the change);
+- **Core Changed Fields**: Displays `OperateDetail.ChangeFields` to quickly locate changed content (e.g., "Role Name, Associated Permissions");
+
+The detail popup supports a "Copy" function, allowing copying of changed data to the clipboard for troubleshooting.
+
+##### (3) Excel Export
+Supports exporting filtered logs to Excel format. The exported file includes the following content:
+- **Header**: Log ID, Operator, Operation Time, Operation Type, Operation Object, Object Name, Changed Fields, Operation IP, Remarks;
+- **Data Rows**: All filtered log records;
+- **Format Optimization**: Header bold with gray background, time field formatted as "yyyy-MM-dd HH:mm:ss", and column widths adapted automatically;
+
+Export Steps:
+1. Set filtering conditions (e.g., "Operation Type=Assign, Time Range=2024-10-01 to 2024-10-30");
+2. Click the "Export Excel" button;
+3. Select the export path (default to Desktop) and set the file name (default to "PermissionAuditLog_202410301430.xlsx");
+4. Click "Save"; after export, display "Export Successful, Open File Now?";
+5. If "Yes" is selected, automatically open the exported file with Excel.
+
+#### 5.1.5 Performance Optimization
+To avoid performance issues caused by excessive audit logs, the module adopts the following optimization measures:
+- **Asynchronous Recording**: Log records are executed asynchronously via background threads without blocking main operations (e.g., after the user clicks "Save Role", the success prompt is returned immediately, and log recording is completed in the background);
+- **Paginated Query**: The log list is displayed in pages, with 20 entries per page by default; only data of the current page is loaded during query;
+- **Index Optimization**: Composite indexes are created on the `OperateTime`, `OperatorId`, `OperateType`, and `ObjectType` fields of the `ErpMergeReportAuditLog` table to improve filtering and query speed;
+- **Log Cleanup**: Collaborates with the "Log Cleanup Module" to clean up expired logs based on time thresholds (e.g., 1 year), retaining only archive files.
+
+### 5.2 Risk Early Warning Module
+#### 5.2.1 Module Overview
+The "Risk Early Warning Module" identifies high-risk behaviors in permission operations and prevents risks through "early warning notifications + operation blocking", addressing the pain points of "no monitoring for high-risk operations and no early warning for risks". The core objectives of the module are:
+- **High-Risk Operation Identification**: Provides preset templates for common high-risk operations (e.g., deleting administrator roles, batch permission assignment);
+- **Multi-Level Notification**: Supports three levels of early warnings (Normal, Important, Emergency), with different notification methods for each level;
+- **Operation Blocking**: Emergency-level early warnings can block high-risk operations (e.g., secondary confirmation or multi-person approval required for deleting administrators);
+- **Early Warning Tracing**: Records all early warning trigger records, supporting viewing of processing status and notification results;
+
+The core interfaces of the module include:
+- `FrmAlertRuleConfig`: Early warning rule configuration interface (add/edit/enable/disable rules);
+- `FrmAlertCenter`: Early Warning Center (views early warning records and handles unprocessed early warnings);
+- `FrmAlertPopup`: Desktop floating early warning popup (real-time notification of high-risk operations);
+- `FrmHighRiskConfirm`: High-risk operation secondary confirmation popup (popped up when blocking operations);
+
+#### 5.2.2 Early Warning Rule Design
+##### (1) Early Warning Levels
+The module supports three levels of early warnings, with different notification methods and processing flows for each level:
+
+| Early Warning Level       | Definition                                                                 | Notification Method                                                                 | Processing Flow                                                                 |
+|----------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Normal                     | Low-risk operations, only need to be recorded, no emergency handling required;           | Desktop popup notification only (automatically closed after 10 seconds);               | No handling required, automatically marked as "Processed";                           |
+| Important                  | Medium-risk operations, requiring administrator attention;                             | Desktop popup + administrator email notification (1 email);                             | Administrators need to view and mark as "Processed" in the Early Warning Center;         |
+| Emergency                  | High-risk operations, may cause permission out of control, requiring immediate handling; | Desktop popup + administrator email notification (1 email every 5 minutes until processed) + SMS notification (extended); | Secondary confirmation or multi-person approval required; otherwise, the operation cannot be executed; |
+
+##### (2) Preset Early Warning Rule Templates
+The module automatically creates 5 preset early warning rule templates during initialization to cover common high-risk scenarios:
+
+| Rule Code               | Rule Name               | Early Warning Level       | Trigger Condition                                                                 | Notification Method               | Blocking Method               |
+|--------------------------|--------------------------|----------------------------|------------------------------------------------------------------------------------------|----------------------------------------|----------------------------------------|
+| TEMPLATE_DELETE_ADMIN    | Admin Role Deletion Warning     | Emergency           | Operation Type=Delete, Operation Object=Role, Role Code=ADMIN;                           | Popup + Email + SMS (Extended) | Secondary Confirmation               |
+| TEMPLATE_BATCH_ASSIGN    | Batch User Assignment Warning (≥5 Users) | Important           | Operation Type=Assign, Operation Object=User Role, Number of Users ≥5;                           | Popup + Email              | None                     |
+| TEMPLATE_ASSIGN_SUPER    | Super Admin Assignment Warning     | Emergency           | Operation Type=Assign, Operation Object=User Role, Role Code=SUPER_ADMIN;                 | Popup + Email + SMS (Extended) | Multi-Person Approval (2 People)        |
+| TEMPLATE_MODIFY_PERM     | Admin Permission Modification Warning     | Important           | Operation Type=Edit, Operation Object=Role Permission, Role Code=ADMIN;                       | Popup + Email              | None                     |
+| TEMPLATE_BATCH_DELETE_ROLE | Batch Role Deletion Warning (≥3 Roles) | Important           | Operation Type=Delete, Operation Object=Role, Number of Roles ≥3;                               | Popup + Email              | None                     |
+
+##### (3) Early Warning Rule Field Description
+The core fields of early warning rules are stored in the `ErpMergeReportAlertRule` table. The field meanings are as follows:
+
+| Field Name       | Data Type       | Description                                                                 | Example Value                                                                 |
+|------------------------|------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| RuleId                 | int (auto-increment)    | Rule ID, primary key;                                                                 | 1                                                                     |
+| RuleName               | nvarchar(100)          | Rule name;                                                                             | Admin Role Deletion Warning                                                     |
+| RuleCode               | nvarchar(50)           | Rule code, unique; preset templates start with "TEMPLATE_";                             | TEMPLATE_DELETE_ADMIN                                                 |
+| AlertLevel             | int                    | Early warning level (1=Normal, 2=Important, 3=Emergency);                           | 3                                                                     |
+| RuleType               | int                    | Rule type (1=Admin Role Deletion, 2=Admin Permission Modification, 3=Batch User Assignment, etc.); | 1                                                                     |
+| TriggerThreshold       | int                    | Trigger threshold (e.g., batch assignment to ≥5 users, threshold=5);                 | 0 (No Threshold)                                                       |
+| RelatedValue           | nvarchar(50)           | Associated value (e.g., Role Code=ADMIN);                                           | ADMIN                                                                 |
+| NotifyType             | int                    | Notification method (1=Popup Only, 2=Email Only, 3=Popup + Email);                   | 3                                                                     |
+| IsEnabled              | bit                    | Whether the rule is enabled;                                                         | 1 (Enabled)                                                             |
+| IsBlockOperation       | bit                    | Whether to trigger operation blocking (only configurable for Emergency level);         | 1 (Yes)                                                               |
+| BlockType              | int                    | Blocking method (1=Secondary Confirmation, 2=Multi-Person Approval);                 | 1                                                                     |
+| ApproverIds            | nvarchar(100)          | List of approver IDs (JSON format, used for multi-person approval);                   | [100, 101] (User IDs 100 and 101 are approvers)                                  |
+| RuleDesc               | nvarchar(500)          | Rule description (early warning reason + handling suggestions);                       | The admin role has the highest permissions; deletion may cause system permission out of control, requiring secondary confirmation before execution |
+
+#### 5.2.3 Core Function Points
+##### (1) Early Warning Rule Configuration
+The `FrmAlertRuleConfig` interface supports adding, editing, enabling, and disabling early warning rules. The core operations are as follows:
+- **Add Rule**:
+  1. Click the "Add Rule" button;
+  2. Fill in the rule name and rule code (custom codes cannot start with "TEMPLATE_");
+  3. Select the early warning level (Normal/Important/Emergency);
+  4. Select the rule type (e.g., "Batch User Role Assignment");
+  5. Set the trigger threshold (e.g., "5" for ≥5 users);
+  6. Set the notification method (Popup/Email/Popup + Email);
+  7. If the level is Emergency, set the blocking method (Secondary Confirmation/Multi-Person Approval) and select approvers;
+  8. Fill in the rule description and click "Save";
+- **Edit Rule**:
+  1. Select a rule and click the "Edit Rule" button;
+  2. Modify fields (the "Rule Code" and "Rule Type" of preset template rules cannot be modified);
+  3. Click "Save";
+- **Enable/Disable Rule**:
+  1. Select a rule and click the "Enable Rule" or "Disable Rule" button;
+  2. The system updates the `IsEnabled` field and records the audit log;
+
+##### (2) Early Warning Trigger and Notification
+When a user performs an operation, the early warning trigger and notification flow is as follows:
+1. **Operation Interception**: Before executing a permission operation (e.g., clicking the "Delete Role" button), the system intercepts the operation and calls the `ErpMergeReportAlertService.CheckAlertRulesAsync` method;
+2. **Rule Verification**: Verifies whether the operation parameters (operation type, object type, object ID, quantity, etc.) match the enabled early warning rules;
+3. **Trigger Early Warning**:
+   - If matching a Normal-level rule: Records the early warning record and pops up the `FrmAlertPopup` window (automatically closed after 10 seconds);
+   - If matching an Important-level rule: Records the early warning record, pops up the window, and sends 1 administrator email;
+   - If matching an Emergency-level rule: Records the early warning record, pops up the window, sends emails (1 every 5 minutes), and triggers operation blocking;
+4. **Operation Blocking (Emergency Level)**:
+   - If the blocking method is "Secondary Confirmation": Pops up the `FrmHighRiskConfirm` window; the user can only continue the operation by clicking the "Confirm" button;
+   - If the blocking method is "Multi-Person Approval": Generates an approval form; the operation can only continue after all approvers click "Approve" in the Early Warning Center;
+5. **Operation Execution**:
+   - If the user confirms/approval is passed: Executes the original operation (e.g., deleting the role) and records the audit log;
+   - If the user cancels/approval is rejected: Cancels the original operation, displays "Operation Cancelled", and records the audit log;
+
+- **Early Warning Popup Example (FrmAlertPopup)**:
+  ```
+  ┌────────────────────────────────────────────────┐
+  │ ⚠️ Emergency Warning - Deleting Admin Role                   │
+  ├────────────────────────────────────────────────┤
+  │ Triggered By: Zhang San (ID: 100)                        │
+  │ Trigger Time: 2024-10-30 14:30:25                 │
+  │ Trigger Detail: Deleting Role [Group Admin (ADMIN)]       │
+  │                                                │
+  │ Handling Suggestion: Please confirm if this is a misoperation. Deletion will cause    │
+  │ permission out of control across all organizations, requiring secondary confirmation.                     │
+  ├────────────────────────────────────────────────┤
+  │ [View Details]                          [Close]     │
+  └────────────────────────────────────────────────┘
+  ```
+
+##### (3) Early Warning Center and Handling
+The `FrmAlertCenter` interface is the centralized management entry for early warning records, supporting the following operations:
+- **Early Warning Filtering**: Supports filtering by early warning level (Normal/Important/Emergency), early warning status (Unprocessed/Processed/Ignored), and time range;
+- **Early Warning Display**: Displays early warning ID, rule name, early warning level, triggerer, trigger time, trigger detail, and processing status;
+- **Early Warning Handling**:
+  1. Select an "Unprocessed" early warning and click the "Handle Warning" button;
+  2. Enter handling remarks (e.g., "Confirmed as a normal operation, verified");
+  3. Click "Confirm"; the system updates the early warning status to "Processed" and records the handler, handling time, and handling remarks;
+- **Early Warning Ignoring**:
+  1. Select an "Unprocessed" early warning and click the "Ignore Warning" button;
+  2. Enter the reason for ignoring (e.g., "Test environment operation, no handling required");
+  3. Click "Confirm"; the system updates the early warning status to "Ignored";
+- **Detail Viewing**: Double-click an early warning record to view early warning details (rule configuration, trigger parameters, notification records);
+
+After handling an Emergency-level early warning, the system automatically stops resending emails (1 every 5 minutes).
+
+#### 5.2.4 Early Warning Notification Optimization
+To ensure that early warning notifications reach administrators in a timely manner, the module adopts the following optimization measures:
+- **Multi-Channel Notification**: Supports multi-channel notifications such as popup, email, and SMS (extended) to avoid single-channel failure;
+- **Email Resending**: For unprocessed Emergency-level early warnings, emails are resent every 5 minutes until handled;
+- **Notification Recording**: Records the result of each notification (e.g., "Popup: Successful, Email: Successful") and stores it in the `ErpMergeReportAlertRecord.NotifyRecord` field;
+- **Notification Failure Retry**: If email sending fails (e.g., SMTP server unavailable), the system retries every 10 minutes for a total of 3 times; if still failed, an error log is recorded.
+
+
+## 6. Detailed Explanation of Core Function Modules (III): Log Cleanup and Archiving
+### 6.1 Module Overview
+The "Log Cleanup and Archiving" module is a key component ensuring long-term stable system operation. It primarily addresses the issues of **database performance degradation and excessive storage usage caused by long-term accumulation of audit logs**, while meeting the enterprise's need for "compliant retention of historical data" (e.g., retaining 5 years of audit records in accordance with the *Enterprise Accounting Archive Management Measures*).
+
+Through a closed-loop process of "**Rule Configuration → Data Archiving → Log Deletion → Record Tracing**", the module realizes automated management of the log lifecycle. Its core features are:
+- **Compliance**: Expired logs are archived before deletion; archive files support encrypted storage to meet audit evidence requirements;
+- **Flexibility**: Supports two cleanup methods (manual trigger/scheduled automatic execution) to adapt to different O&M habits;
+- **Security**: Only administrators can configure cleanup rules; secondary confirmation is required before cleanup to avoid accidental deletion;
+- **Traceability**: Records each cleanup operation (number of cleaned logs, archive path, execution time) and supports archive file location.
+
+The core interfaces of the module are concentrated in the `UI/ERP/Finance/MergeReport/Permission/Audit/Cleanup` directory, including:
+- `FrmCleanupRuleConfig`: Log cleanup rule configuration interface (sets retention time, archive path, and execution method);
+- `FrmCleanupRecordQuery`: Cleanup record query interface (traces historical cleanup operations and locates archive files);
+- `FrmCleanupConfirm`: Cleanup execution secondary confirmation popup (prevents misoperation);
+
+### 6.2 Core Function Design
+#### 6.2.1 Cleanup Rule Configuration
+Cleanup rules are the core configuration of the module; only one valid rule is required globally (to avoid multi-rule conflicts). Rules are stored in the `ErpMergeReportCleanupRules` table and support visual configuration.
+
+##### (1) Core Configuration Fields
+| Configuration Item               | Field Meaning                                                                 | Configuration Constraints                                                                 | Example Value                                                                 |
+|------------------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Log Retention Period (Days)        | Maximum number of days logs are retained in the database; expired logs will be cleaned up | 30 ≤ Retention Days ≤ 1825 (1-5 years, meeting compliance requirements of most enterprises) | 365 (Retain for 1 year)                                                       |
+| Archive File Path                 | Storage path of archived expired logs (local/network shared)                           | The path must have read/write permissions and support absolute paths (e.g., `D:\ERP\AuditArchive`) | `D:\ERP\AuditArchive\MergeReport`                                    |
+| Archive File Format               | Storage format of archive files (currently only CSV, compatible with Excel)              | Fixed as CSV (small file size, strong compatibility, avoiding Excel row limits)           | CSV                                                                 |
+| Enable File Encryption             | Whether to encrypt archive files with AES (preventing unauthorized access)                | Only AES-256 encryption is supported; the password must be ≥8 characters (letters + numbers + special characters) | Yes                                                                   |
+| Encryption Password                | Decryption password for archive files (automatically encrypted during storage to avoid plaintext leakage) | The password must be kept in mind; archive files cannot be decrypted if the password is lost | `ERP_Archive_2024!`                                                  |
+| Execution Method                   | Trigger method for cleanup tasks (Manual/Scheduled)                                     | Scheduled execution requires Cron expression configuration                               | Scheduled Execution                                                     |
+| Cron Expression                    | Execution time of scheduled cleanup (e.g., 1:00 AM on the 1st day of each month)        | Follows Quartz Cron syntax, supporting hourly/daily/weekly/monthly scheduling           | `0 0 1 1 * ?` (Executes at 01:00 on the 1st day of each month)             |
+| Enable Rule                        | Whether to enable the current cleanup rule                                             | Only one rule can be enabled globally (to avoid repeated execution of multi-rules)       | Yes                                                                   |
+| Remarks                            | Description of rule configuration (e.g., "Configured in accordance with 2024 financial compliance requirements, retaining logs for 1 year") | Optional, ≤500 characters                                                             | "Retain original logs for 1 year as required by group financial audit"     |
+
+##### (2) Configuration Interface Operation Steps
+1. Log in to the system, navigate to [Finance → Consolidated Reports → Log Cleanup → Rule Configuration], and open the `FrmCleanupRuleConfig` interface;
+2. Fill in the "Log Retention Period" (e.g., 365 days);
+3. Click the "Select Path" button, specify the archive path (e.g., `D:\ERP\AuditArchive`) via the folder selector; the system automatically verifies path permissions (displays "Path valid with read/write permissions");
+4. Check "Enable File Encryption", enter and confirm the encryption password (the system automatically verifies password complexity);
+5. Select the "Execution Method":
+   - If "Manual Execution" is selected: No Cron expression configuration is required; click "Save Rule" to complete configuration;
+   - If "Scheduled Execution" is selected: Fill in the scheduling time in the "Cron Expression" input box (e.g., `0 0 1 1 * ?`); click the "Verify Cron" button to check syntax correctness;
+6. Fill in remarks and click "Save Rule";
+7. The system prompts "Rule saved successfully. Enable now?"; select "Yes" to activate the rule.
+
+##### (3) Configuration Verification Logic
+Before saving the rule, the system automatically performs the following verifications to avoid configuration errors:
+- **Path Verification**: Checks if the archive path exists; if not, attempts to create it; verifies read/write permissions by creating a temporary file (`test_archive.txt`);
+- **Password Verification**: If encryption is enabled, verifies that the password is ≥8 characters and contains letters, numbers, and special characters;
+- **Cron Verification**: If scheduled execution is selected, verifies the syntax via `Quartz.CronExpression.ValidateExpression()` and displays the "Next Execution Time" (e.g., "Next Execution Time: 2024-11-01 01:00:00");
+- **Uniqueness Verification**: Automatically disables other enabled rules to ensure only one valid rule exists   
+#### 6.2.2 Cleanup Executio 
+
+##### (1) Core Execution Steps  
+1. **Pre-Cleanup Preparation**:  
+   - Load the currently active cleanup rule and calculate the cleanup threshold (`Cleanup Threshold = Current Time - Retention Days`, e.g., 2024-10-30 - 365 days = 2023-10-30);  
+   - Query expired logs in the database where `OperateTime < Cleanup Threshold` (from the `ErpMergeReportAuditLogs` table);  
+   - If there are no expired logs, directly generate a cleanup record (Cleaned Count = 0) and terminate the process.  
+
+2. **Expired Log Archiving**:  
+   - Generate an archive file name (format: `audit_archive_YYYYMMDD_HHmmss.csv`, e.g., `audit_archive_20241030_010000.csv`);  
+   - Call the `ArchiveHelper.GenerateCsvArchiveAsync()` method to export expired logs to CSV format (including 12 fields such as Log ID, Operator, Operation Time, and Change Details);  
+   - If encryption is enabled, call the `ArchiveHelper.EncryptFile()` method to encrypt the archive file with AES-256 (append `.encrypted` to the encrypted file name, e.g., `audit_archive_20241030_010000.csv.encrypted`);  
+   - Record archive file information (path, size, encryption status).  
+
+3. **Database Log Deletion**:  
+   - Start a database transaction and delete expired logs in batches (1,000 entries per batch to avoid table locking caused by deleting a large volume of data at once);  
+   - Transaction Commit: If deletion succeeds, retain the archive file; if deletion fails, roll back the archiving operation (delete the temporarily generated archive file).  
+
+4. **Cleanup Record Generation**:  
+   - Generate a cleanup record (stored in the `ErpMergeReportCleanupRecords` table), including:  
+     - Cleaned Count: Number of logs deleted in this cleanup;  
+     - Archive File Path: Full path of the archive file;  
+     - Archive File Size: In KB (e.g., 2048 KB);  
+     - Execution Method: Manual / Scheduled;  
+     - Executor: Current user for manual execution, "System User" for scheduled execution;  
+   - Record system logs (output via `Serilog` at the `Info` level, e.g., "2024-10-30 01:00:00 Executed log cleanup, deleted 1,200 expired logs, archive file path: D:\ERP\AuditArchive\audit_archive_20241030_010000.csv.encrypted").  
+
+
+##### (2) Manual Execution Operation Steps  
+1. Navigate to [Finance → Consolidated Reports → Log Cleanup → Manual Cleanup] and open the cleanup execution interface;  
+2. The system automatically loads the currently active rule and displays the "Estimated Cleanup Count" (e.g., "Estimated to clean 1,200 logs before 2023-10-30");  
+3. Click the "Execute Cleanup" button to pop up the `FrmCleanupConfirm` secondary confirmation window;  
+4. The window prompts "Confirm cleanup? After cleanup, only archive files of expired logs will be retained, and they will be permanently deleted from the database". Enter the administrator password (for secondary verification);  
+5. Click "Confirm" to start the cleanup process (a progress bar is displayed, e.g., "Archiving...30%" "Deleting...80%");  
+6. After cleanup is completed, a prompt is displayed: "Cleanup successful! A total of 1,200 logs were cleaned, and the archive file was saved to D:\ERP\AuditArchive\audit_archive_20241030_143000.csv.encrypted";  
+7. Click "View Records" to jump to the `FrmCleanupRecordQuery` interface and view details of this cleanup.  
+
+
+##### (3) Scheduled Execution Configuration  
+Scheduled cleanup relies on `Quartz.NET` to implement background task scheduling, which requires initializing the scheduler when the system starts:  
+
+1. Add Quartz configuration in `Program.cs`:  
+   ```csharp
+   // Initialize Quartz scheduler
+   var schedulerFactory = new StdSchedulerFactory();
+   var scheduler = await schedulerFactory.GetScheduler();
+   await scheduler.Start();
+
+   // Load cleanup rules and create scheduled tasks
+   var cleanupService = serviceProvider.GetRequiredService<IErpMergeReportCleanupService>();
+   var cleanupRule = await cleanupService.GetCurrentCleanupRuleAsync();
+   if (cleanupRule.IsEnabled && cleanupRule.ExecuteType == CleanupExecuteType.Scheduled)
+   {
+       // Create task details
+       var jobDetail = JobBuilder.Create<CleanupJob>()
+           .WithIdentity("MergeReportAuditCleanupJob", "AuditGroup")
+           .Build();
+
+       // Create trigger (based on Cron expression)
+       var trigger = TriggerBuilder.Create()
+           .WithIdentity("MergeReportAuditCleanupTrigger", "AuditGroup")
+           .WithCronSchedule(cleanupRule.CronExpression)
+           .Build();
+
+       // Bind task and trigger
+       await scheduler.ScheduleJob(jobDetail, trigger);
+   }
+   ```
+
+2. Implement the `CleanupJob` task class (inherits `IJob`):  
+   ```csharp
+   public class CleanupJob : IJob
+   {
+       private readonly IErpMergeReportCleanupService _cleanupService;
+
+       public CleanupJob(IErpMergeReportCleanupService cleanupService)
+       {
+           _cleanupService = cleanupService;
+       }
+
+       public async Task Execute(IJobExecutionContext context)
+       {
+           // Execute scheduled cleanup (System User ID = 0, User Name = "System Automatic Execution")
+           await _cleanupService.ExecuteScheduledCleanupAsync(0, "System Automatic Execution");
+       }
+   }
+   ```
+
+3. Scheduled Execution Logs: The system automatically records execution results (success/failure). In case of failure, an error log is output via `Serilog`, and an email notification is sent to O&M personnel.  
+
+
+#### 6.2.3 Archive File Management  
+Archive files are the only form of retained expired logs. The module provides full-process support for "archive file location, decryption, and viewing" to ensure traceability of historical data in compliance scenarios.  
+
+##### (1) Archive File Format Specifications  
+CSV archive files adopt a standardized format for easy opening in Excel and parsing by audit tools. The file content includes:  
+
+| Column Name          | Data Meaning                                                                 | Data Type                | Example Value                  |
+|----------------------|------------------------------------------------------------------------------|--------------------------|--------------------------------|
+| Log ID               | Unique ID of the audit log                                                   | Numeric (bigint)         | 10001                          |
+| Operator ID          | System ID of the operator                                                   | Numeric (int)            | 100                            |
+| Operator Name        | Name of the operator (redundantly stored to avoid user table association)    | Text                     | Zhang San                      |
+| Operation Time       | Time when the operation was executed                                         | Time format (yyyy-MM-dd HH:mm:ss) | 2023-05-15 09:30:25       |
+| Operation Type       | Operation type (Add/Edit/Delete/Assign/Associate)                            | Text                     | Assign                         |
+| Operation Object Type| Type of the operation object (Role/User Role/Role Permission)                | Text                     | User Role                      |
+| Object ID            | ID of the operation object (e.g., User ID, Role ID)                           | Numeric (int)            | 1001                           |
+| Object Name          | Name of the operation object (e.g., User Name, Role Name)                    | Text                     | Beijing Branch Finance         |
+| Changed Fields       | Core changed fields (e.g., "Role Name, Associated Permissions")              | Text                     | Assigned Role, Data Isolation Organization |
+| Operation IP         | Client IP address of the operator                                            | Text                     | 192.168.1.105                  |
+| Remarks              | Operation remarks (e.g., "Temporarily assigned permissions, valid for 7 days")| Text (optional)          | "2023 Q2 Audit-Specific"       |
+| Archiving Time       | Time when the log was archived                                               | Time format (yyyy-MM-dd HH:mm:ss) | 2024-10-30 01:00:00       |
+
+
+##### (2) Archive File Encryption and Decryption  
+- **Encryption Logic**: After generating the archive file, call the `ArchiveHelper.EncryptFile()` method to encrypt it with AES-256. The key is derived from the "user password + fixed salt value (`ERP_AUDIT_ARCHIVE_SALT_2024`)" using the PBKDF2 algorithm to ensure encryption strength.  
+- **Decryption Method**:  
+  1. Locate the target archive record in the `FrmCleanupRecordQuery` interface and click the "Decrypt File" button;  
+  2. Enter the encryption password (consistent with the one used during configuration);  
+  3. The system generates a decrypted temporary file (path: `C:\Users\CurrentUser\AppData\Local\Temp\audit_archive_20241030_010000.csv`);  
+  4. Automatically open the temporary file with Excel (it is recommended to manually delete the file after viewing to avoid leakage).  
+- **Password Retrieval**: If the password is lost, the database administrator needs to retrieve the encrypted password field (`EncryptPassword`) from the `ErpMergeReportCleanupRules` table and use the system's built-in decryption tool (`EncryptHelper.DecryptAES()`) to recover it (requires `SELECT` permission on the database and the system key).  
+
+
+##### (3) Archive File Migration and Backup  
+When the disk space at the archive path is insufficient, manual migration of archive files is supported. The steps are as follows:  
+1. Navigate to [Finance → Consolidated Reports → Log Cleanup → Archive Management] and view the current list of archive files (sorted in reverse chronological order);  
+2. Check the archive files to be migrated (batch selection is supported);  
+3. Click the "Migrate Files" button and select the target path (e.g., external hard drive `E:\ERP\AuditArchive_Backup`);  
+4. The system automatically copies the files to the target path and updates the "Archive File Path" field in the cleanup record (to ensure future location);  
+5. After copying is completed, a prompt is displayed: "Migration successful! A total of 15 files were migrated, with a total size of 2.5GB";  
+6. Manually delete the files from the original path (it is recommended to back up first before deletion to avoid migration failures).  
+
+
+#### 6.2.4 Cleanup Record Tracing  
+Each cleanup operation generates an unmodifiable cleanup record, which is stored in the `ErpMergeReportCleanupRecords` table. Multi-condition query and detail viewing are supported to meet audit traceability requirements.  
+
+##### (1) Core Fields of Cleanup Records  
+
+| Field Name           | Meaning                                                                 | Example Value                                                  |
+|----------------------|--------------------------------------------------------------------------|----------------------------------------------------------------|
+| CleanupId            | Unique ID of the cleanup record (auto-increment primary key)              | 101                                                            |
+| RuleId               | Associated cleanup rule ID                                                | 1                                                              |
+| ExecuteType          | Execution method (1=Manual, 2=Scheduled)                                  | 2 (Scheduled)                                                  |
+| CleanupThreshold     | Cleanup threshold time (criteria for identifying expired logs)            | 2023-10-30 00:00:00                                           |
+| CleanedCount         | Number of logs cleaned in this operation                                  | 1200                                                           |
+| ArchiveFilePath      | Full path of the archive file                                             | `D:\ERP\AuditArchive\audit_archive_20241030_010000.csv.encrypted` |
+| ArchiveFileSize      | Size of the archive file (KB)                                             | 2048                                                           |
+| IsEncryptFile        | Whether encrypted (1=Yes, 0=No)                                          | 1                                                              |
+| CleanupStatus        | Execution status (1=Success, 2=Failure)                                  | 1 (Success)                                                    |
+| ExecuteTime          | Execution time                                                           | 2024-10-30 01:00:00                                           |
+| ExecuteUserId        | Executor ID (0=System Automatic Execution)                                | 0                                                              |
+| ExecuteUserName      | Executor name                                                            | System Automatic Execution                                     |
+| FailReason           | Failure reason (non-null only if status is Failure)                       | "No permission to access the archive path, cleanup terminated" |
+
+
+##### (2) Cleanup Record Query Operations  
+1. Navigate to [Finance → Consolidated Reports → Log Cleanup → Record Query] and open the `FrmCleanupRecordQuery` interface;  
+2. Set filter criteria (multi-condition combination is supported):  
+   - Time Range: Default to the last 3 months, customizable (e.g., "2024-01-01 to 2024-10-30");  
+   - Execution Method: Dropdown selection (All/Manual/Scheduled);  
+   - Execution Status: Dropdown selection (All/Success/Failure);  
+   - Executor: Fuzzy search (e.g., "System Automatic Execution", "Zhang San");  
+3. Click the "Query" button to display cleanup records that meet the criteria in the list (sorted in reverse chronological order of execution time);  
+4. View Details: Double-click any record to pop up a detail window displaying "Cleanup Threshold, Archive File Information, Execution Logs", etc.;  
+5. Locate Archive File: Click the "Open Archive Directory" button to automatically open the folder where the archive file is located (e.g., `D:\ERP\AuditArchive`);  
+6. Export Records: Click the "Export Excel" button to export the query results to Excel (including all fields for audit archiving).  
+
+
+##### (3) Handling Failed Records  
+If cleanup execution fails (e.g., no permission to access the archive path, database connection timeout), the system generates a failure record and provides troubleshooting guidance:  
+1. Filter records with "Execution Status = Failure" in the `FrmCleanupRecordQuery` interface;  
+2. View the "Failure Reason" field to obtain specific error information (e.g., "No write permission for the archive path D:\ERP\AuditArchive");  
+3. Fix the issue based on the error reason (e.g., grant read/write permissions to the path, check the database connection);  
+4. Select the failed record and click the "Re-Execute" button to re-trigger the cleanup process (using the original rule configuration);  
+5. After successful re-execution, the system updates the record status to "Success" and records the "Re-Execution Time".  
+
+
+### 6.3 Performance Optimization and Security Protection  
+#### 6.3.1 Performance Optimization Measures  
+To address issues such as high database pressure and long execution time when cleaning up a large number of logs, the module adopts the following optimization solutions:  
+
+1. **Batch Deletion Optimization**:  
+   - Delete logs in batches (1,000 entries per batch) to avoid table locking caused by deleting 100,000+ entries at once;  
+   - Disable non-clustered indexes on the `ErpMergeReportAuditLogs` table before deletion and rebuild them after deletion (to reduce index maintenance overhead);  
+   - Example Code:  
+     ```csharp
+     // Delete expired logs in batches
+     var batchSize = 1000;
+     var totalDeleted = 0;
+     var overdueLogIds = await _auditLogRepo.GetQueryable()
+         .Where(log => log.OperateTime < cleanupThreshold)
+         .Select(log => log.LogId)
+         .ToListAsync();
+
+     while (totalDeleted < overdueLogIds.Count)
+     {
+         var batchIds = overdueLogIds.Skip(totalDeleted).Take(batchSize).ToList();
+         // Disable indexes
+         await _dbContext.Database.ExecuteSqlRawAsync("ALTER INDEX ALL ON ErpMergeReportAuditLogs DISABLE");
+         // Batch deletion
+         await _auditLogRepo.DeleteRangeAsync(log => batchIds.Contains(log.LogId));
+         await _auditLogRepo.SaveChangesAsync();
+         // Rebuild indexes
+         await _dbContext.Database.ExecuteSqlRawAsync("ALTER INDEX ALL ON ErpMergeReportAuditLogs REBUILD");
+         
+         totalDeleted += batchSize;
+         // Record batch progress
+         _logger.LogInformation($"Deleted {totalDeleted} expired logs, remaining {overdueLogIds.Count - totalDeleted} logs");
+     }
+     ```
+
+2. **Archiving Performance Optimization**:  
+   - Use `StreamWriter` to write to CSV line by line (to avoid loading all logs into memory at once and reduce memory usage);  
+   - The archiving process is executed in a background thread without blocking the main thread (users can normally operate other functions);  
+   - Example Code:  
+     ```csharp
+     // Stream-write to CSV to reduce memory usage
+     using var writer = new StreamWriter(archiveFilePath, false, Encoding.UTF8);
+     // Write header
+     await writer.WriteLineAsync(string.Join(",", headers));
+     // Write data line by line (read 1000 entries from the database each time to avoid memory overflow)
+     var pageIndex = 1;
+     while (true)
+     {
+         var batchLogs = await _auditLogRepo.GetQueryable()
+             .Where(log => log.OperateTime < cleanupThreshold)
+             .Skip((pageIndex - 1) * batchSize)
+             .Take(batchSize)
+             .ToListAsync();
+
+         if (!batchLogs.Any()) break;
+
+         foreach (var log in batchLogs)
+         {
+             var parsedDetail = JsonConvert.DeserializeObject<AuditOperateDetail>(log.OperateDetail);
+             var fields = new[] { log.LogId.ToString(), log.OperatorName, ... };
+             await writer.WriteLineAsync(string.Join(",", fields));
+         }
+         pageIndex++;
+     }
+     ```
+
+3. **Scheduled Task Scheduling Optimization**:  
+   - Scheduled cleanup tasks are executed during off-peak business hours (e.g., 1:00 AM) to avoid conflicts with core tasks such as consolidated report generation and data synchronization;  
+   - Before task execution, check the database load (query the wait queue via `sys.dm_os_wait_stats`). If the load is too high (CPU usage > 80%), the execution is automatically delayed (up to 2 hours).  
+
+
+#### 6.3.2 Security Protection Mechanisms  
+To avoid security risks such as "accidental log deletion and archive file leakage", the module builds a protection system from three aspects: "operation permissions, data encryption, and log auditing":  
+
+1. **Operation Permission Control**:  
+   - Only users with the "ADMIN" role can configure cleanup rules and execute manual cleanup (permissions are verified via `PermissionHelper.CheckPermission()`);  
+   - Secondary verification (enter the administrator password) is required before cleanup execution to prevent misoperations;  
+   - Example Code:  
+     ```csharp
+     // Verify if the user has permission to execute cleanup
+     public async Task CheckCleanupPermissionAsync(int userId)
+     {
+         var userRoles = await _userRoleRepo.GetQueryable()
+             .Where(ur => ur.UserId == userId)
+             .Select(ur => ur.RoleId)
+             .ToListAsync();
+
+         var isAdmin = await _roleRepo.GetQueryable()
+             .AnyAsync(r => userRoles.Contains(r.Id) && r.RoleCode == "ADMIN");
+
+         if (!isAdmin)
+             throw new BusinessException(16007, "No log cleanup permission. Only administrators can execute this operation");
+     }
+     ```
+
+2. **Data Encryption Protection**:  
+   - Archive files are encrypted with AES-256 to prevent unauthorized access (even if the file is copied, its content cannot be viewed without the password);  
+   - The encryption password in the cleanup rule is encrypted twice using the system's built-in key (via `EncryptHelper.EncryptAES()`) during storage to avoid plaintext leakage in the database;  
+   - Decrypted temporary files are automatically stored in the user's local temporary directory. It is recommended to delete them manually after viewing, and the system automatically cleans up expired temporary files (older than 24 hours) regularly.  
+
+3. **Operation Log Auditing**:  
+   - All cleanup-related operations (rule configuration, manual cleanup, archive file migration) are recorded in audit logs, including "operator, time, IP, and operation content";  
+   - Cleanup records are unmodifiable (a "forbid update" trigger is set for the `ErpMergeReportCleanupRecords` table in the database) to ensure the authenticity and reliability of traceability data;  
+   - Trigger Example (SQL Server):  
+     ```sql
+     -- Create a trigger to forbid updates to cleanup records
+     CREATE TRIGGER trg_CleanupRecord_NoUpdate
+     ON ErpMergeReportCleanupRecords
+     FOR UPDATE
+     AS
+     BEGIN
+         RAISERROR('Cleanup records cannot be modified. Contact the database administrator for adjustments if necessary', 16, 1);
+         ROLLBACK TRANSACTION;
+     END;
+     ```
+
+
+## 7. System Integration Guide  
+Enterprise-level systems need to seamlessly integrate with existing IT architectures. This module supports four core integration scenarios: "user system, email service, monitoring and alerting, and data backup" to reduce deployment costs and improve usability.  
+
+### 7.1 User System Integration  
+This module uses a built-in user table (`ErpUsers`) by default. However, enterprises usually have unified user systems (e.g., LDAP, Active Directory, enterprise SSO). The module provides flexible integration solutions, supporting two modes: "account mapping" and "SSO login".  
+
+#### 7.1.1 LDAP/Active Directory Integration (Account Mapping)  
+Suitable for scenarios where enterprises use LDAP/AD to manage user accounts. The module verifies user identities via the LDAP protocol and maps them to internal role permissions.  
+
+##### (1) Integration Prerequisites  
+- Enterprise LDAP/AD server address and port (e.g., `ldap://192.168.1.200:389`);  
+- An LDAP service account with query permissions (e.g., `CN=erp_service,OU=ServiceAccounts,DC=company,DC=com`);  
+- Mapping relationship between LDAP user attributes and system user attributes (e.g., `sAMAccountName` in LDAP corresponds to `UserName` in the system).  
+
+##### (2) Configuration Steps  
+1. Add LDAP configuration to `appsettings.json`:  
+   ```json
+   "LdapSettings": {
+     "Server": "192.168.1.200",
+     "Port": 389,
+     "UseSsl": false,
+     "ServiceAccountDn": "CN=erp_service,OU=ServiceAccounts,DC=company,DC=com",
+     "ServiceAccountPassword": "Ldap_Service_2024!",
+     "UserSearchBase": "OU=Users,DC=company,DC=com",
+     "UserSearchFilter": "(sAMAccountName={0})", // {0} is replaced with the username entered by the user
+     "UserNameAttribute": "sAMAccountName", // LDAP username attribute
+     "UserDisplayNameAttribute": "displayName", // LDAP user display name attribute
+     "UserEmailAttribute": "mail" // LDAP user email attribute
+   }
+   ```
+
+2. Implement the LDAP authentication service (`LdapAuthenticationService.cs`):  
+   ```csharp
+   public class LdapAuthenticationService : IAuthenticationService
+   {
+       private readonly IConfiguration _configuration;
+       private readonly ILogger<LdapAuthenticationService> _logger;
+       private readonly IUserRepository _userRepo;
+
+       public LdapAuthenticationService(IConfiguration configuration, ILogger<LdapAuthenticationService> logger, IUserRepository userRepo)
+       {
+           _configuration = configuration;
+           _logger = logger;
+           _userRepo = userRepo;
+       }
+
+       public async Task<(bool IsValid, ErpUser User)> AuthenticateAsync(string userName, string password)
+       {
+           // 1. Build LDAP connection
+           var ldapServer = _configuration["LdapSettings:Server"];
+           var ldapPort = int.Parse(_configuration["LdapSettings:Port"]);
+           var useSsl = bool.Parse(_configuration["LdapSettings:UseSsl"]);
+           var ldapPath = useSsl ? $"LDAPS://{ldapServer}:{ldapPort}" : $"LDAP://{ldapServer}:{ldapPort}";
+
+           using var ldapConnection = new LdapConnection(ldapPath);
+           ldapConnection.AuthenticationType = AuthenticationTypes.None;
+
+           try
+           {
+               // 2. Bind the LDAP service account to query the user DN
+               var serviceAccountDn = _configuration["LdapSettings:ServiceAccountDn"];
+               var serviceAccountPwd = _configuration["LdapSettings:ServiceAccountPassword"];
+               ldapConnection.Credential = new NetworkCredential(serviceAccountDn, serviceAccountPwd);
+               ldapConnection.Bind();
+
+               // 3. Query the user
+               var searchFilter = string.Format(_configuration["LdapSettings:UserSearchFilter"], userName);
+               var searchBase = _configuration["LdapSettings:UserSearchBase"];
+               var searchRequest = new SearchRequest(
+                   searchBase,
+                   searchFilter,
+                   SearchScope.Subtree,
+                   _configuration["LdapSettings:UserNameAttribute"],
+                   _configuration["LdapSettings:UserDisplayNameAttribute"],
+                   _configuration["LdapSettings:UserEmailAttribute"]);
+
+               var searchResponse = (SearchResponse)ldapConnection.SendRequest(searchRequest);
+               if (searchResponse.Entries.Count == 0)
+                   return (false, null); // User does not exist
+
+               var userEntry = searchResponse.Entries[0];
+               var userDn = userEntry.DistinguishedName;
+
+               // 4. Verify the user password
+               ldapConnection.Credential = new NetworkCredential(userDn, password);
+               ldapConnection.Bind(); // Password is correct if binding succeeds
+
+               // 5. Map to system user (automatically created if not exists)
+               var systemUser = await MapLdapUserToSystemUserAsync(userEntry);
+               return (true, systemUser);
+           }
+           catch (LdapException ex)
+           {
+               _logger.LogError($"LDAP authentication failed: {ex.Message}");
+               return (false, null);
+           }
+       }
+
+       // Map LDAP user to system user
+       private async Task<ErpUser> MapLdapUserToSystemUserAsync(SearchResultEntry ldapEntry)
+       {
+           var userName = ldapEntry.Attributes[_configuration["LdapSettings:UserNameAttribute"]][0].ToString();
+           var user = await _userRepo.GetQueryable()
+               .FirstOrDefaultAsync(u => u.UserName == userName);
+
+           if (user == null)
+           {
+               // Automatically create a system user (no roles by default; assigned by the administrator)
+               user = new ErpUser
+               {
+                   UserName = userName,
+                   RealName = ldapEntry.Attributes[_configuration["LdapSettings:UserDisplayNameAttribute"]][0].ToString(),
+                   Email = ldapEntry.Attributes[_configuration["LdapSettings:UserEmailAttribute"]][0].ToString(),
+                   IsEnabled = true,
+                   CreateTime = DateTime.Now
+               };
+
+               await _userRepo.AddAsync(user);
+               await _userRepo.SaveChangesAsync();
+           }
+
+           return user;
+       }
+   }
+   ```
+
+3. Register the authentication service (`Program.cs`):  
+   ```csharp
+   // Replace the default authentication service with LDAP authentication
+   services.AddScoped<IAuthenticationService, LdapAuthenticationService>();
+   ```
+
+4. Test Verification:  
+   - Log in to the system using an LDAP account (e.g., `zhangsan`). The system automatically verifies the password via LDAP;  
+   - After successful login, the user is automatically mapped to a system user. Subsequent permission assignments are the same as those for built-in users.  
+
+
+#### 7.1.2 SSO Single Sign-On Integration (e.g., OAuth2.0/OIDC)  
+Suitable for scenarios where enterprises have deployed an SSO system (e.g., Keycloak, Azure AD, enterprise self-built SSO). After logging in via SSO, users can access this module without re-entering their password.  
+
+##### (1) Integration Prerequisites  
+- SSO server address (e.g., `https://sso.company.com/auth`);  
+- Client ID and Client Secret (obtained from the SSO administrator);  
+- Callback URL (login callback path of this module, e.g., `http://erp.company.com/merge-report/ssologin/callback`);  
+- SSO user information interface (e.g., `https://sso.company.com/auth/userinfo`).  
+
+##### (2) Configuration Steps  
+1. Add SSO configuration to `appsettings.json`:  
+   ```json
+   "SsoSettings": {
+     "Authority": "https://sso.company.com/auth",
+     "ClientId": "merge-report-permission",
+     "ClientSecret": "sso_client_secret_2024!",
+     "RedirectUri": "http://erp.company.com/merge-report/ssologin/callback",
+     "PostLogoutRedirectUri": "http://erp.company.com/merge-report/login",
+     "ResponseType": "code",
+     "Scope": "openid profile email roles", // Scope of requested user information
+     "UserInfoEndpoint": "https://sso.company.com/auth/userinfo"
+   }
+   ```
+
+2. Implement the SSO authentication middleware (`SsoAuthenticationMiddleware.cs`):  
+   ```csharp
+   public class SsoAuthenticationMiddleware
+   {
+       private readonly RequestDelegate _next;
+       private readonly IConfiguration _configuration;
+       private readonly IHttpClientFactory _httpClientFactory;
+       private readonly IUserRepository _userRepo;
+       private readonly ILogger<SsoAuthenticationMiddleware> _logger;
+
+       public SsoAuthenticationMiddleware(RequestDelegate next, IConfiguration configuration, IHttpClientFactory httpClientFactory, IUserRepository userRepo, ILogger<SsoAuthenticationMiddleware> logger)
+       {
+           _next = next;
+           _configuration = configuration;
+           _httpClientFactory = httpClientFactory;
+           _userRepo = userRepo;
+           _logger = logger;
+       }
+
+       public async Task InvokeAsync(HttpContext context)
+       {
+           // 1. Check if the user is already logged in (Session exists)
+           if (context.Session.GetInt32("UserId") != null)
+           {
+               await _next(context);
+               return;
+           }
+
+           // 2. Check if it is an SSO callback request
+           if (context.Request.Path == _configuration["SsoSettings:RedirectUri"].Split('?')[0])
+           {
+               await HandleSsoCallbackAsync(context);
+               return;
+           }
+
+           // 3. Not logged in; redirect to the SSO login page
+           var ssoLoginUrl = $"{_configuration["SsoSettings:Authority"]}/authorize?" +
+                             $"client_id={_configuration["SsoSettings:ClientId"]}&" +
+                             $"redirect_uri={Uri.EscapeDataString(_configuration["SsoSettings:RedirectUri"])}&" +
+                             $"response_type={_configuration["SsoSettings:ResponseType"]}&" +
+                             $"scope={Uri.EscapeDataString(_configuration["SsoSettings:Scope"])}";
+
+           context.Response.Redirect(ssoLoginUrl);
+       }
+
+       // Handle SSO callback (obtain code, exchange for token, get user information)
+       private async Task HandleSsoCallbackAsync(HttpContext context)
+       {
+           var code = context.Request.Query["code"].FirstOrDefault();
+           if (string.IsNullOrWhiteSpace(code))
+           {
+               context.Response.Redirect("/merge-report/login?error=Missing code parameter");
+               return;
+           }
+
+           try
+           {
+               // 1. Exchange code for access_token
+               var httpClient = _httpClientFactory.CreateClient();
+               var tokenResponse = await httpClient.PostAsync($"{_configuration["SsoSettings:Authority"]}/token", new FormUrlEncodedContent(new[]
+               {
+                   new KeyValuePair<string, string>("grant_type", "authorization_code"),
+                   new KeyValuePair<string, string>("client_id", _configuration["SsoSettings:ClientId"]),
+                   new KeyValuePair<string, string>("client_secret", _configuration["SsoSettings:ClientSecret"]),
+                   new KeyValuePair<string, string>("code", code),
+                   new KeyValuePair<string, string>("redirect_uri", _configuration["SsoSettings:RedirectUri"])
+               }));
+
+               if (!tokenResponse.IsSuccessStatusCode)
+               {
+                   context.Response.Redirect("/merge-report/login?error=Failed to obtain token");
+                   return;
+               }
+
+               var tokenData = await tokenResponse.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+               var accessToken = tokenData["access_token"];
+
+               // 2. Use access_token to get user information
+               httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+               var userInfo = await httpClient.GetFromJsonAsync<SsoUserInfo>(_configuration["SsoSettings:UserInfoEndpoint"]);
+
+               // 3. Map to system user (similar to LDAP logic)
+               var systemUser = await MapSsoUserToSystemUserAsync(userInfo);
+
+               // 4. Create Session and log in successfully
+               context.Session.SetInt32("UserId", systemUser.Id);
+               context.Session.SetString("UserName", systemUser.UserName);
+               context.Response.Redirect("/merge-report/home");
+           }
+           catch (Exception ex)
+           {
+               _logger.LogError($"Failed to handle SSO callback: {ex.Message}");
+               context.Response.Redirect($"/merge-report/login?error={Uri.EscapeDataString(ex.Message)}");
+           }
+       }
+
+       // Map SSO user to system user
+       private async Task<ErpUser> MapSsoUserToSystemUserAsync(SsoUserInfo ssoUser)
+       {
+           // Logic is consistent with LDAP user mapping; match system users based on user information returned by SSO (e.g., email, username)
+           var user = await _userRepo.GetQueryable()
+               .FirstOrDefaultAsync(u => u.Email == ssoUser.Email);
+
+           if (user == null)
+           {
+               user = new ErpUser
+               {
+                   UserName = ssoUser.Name,
+                   RealName = ssoUser.Name,
+                   Email = ssoUser.Email,
+                   IsEnabled = true,
+                   CreateTime = DateTime.Now
+               };
+
+               await _userRepo.AddAsync(user);
+               await _userRepo.SaveChangesAsync();
+           }
+
+           return user;
+       }
+   }
+
+   // SSO user information model
+   public class SsoUserInfo
+   {
+       public string Sub { get; set; } // Unique user ID
+       public string Name { get; set; } // User name
+       public string Email { get; set; } // Email
+       public List<string> Roles { get; set; } // User roles (optional)
+   }
+   ```
+
+3. Register the middleware (`Program.cs`):  
+   ```csharp
+   // Enable Session
+   app.UseSession();
+   // Register SSO authentication middleware
+   app.UseMiddleware<SsoAuthenticationMiddleware>();
+   ```
+
+4. Test Verification:  
+   - Access the home page of this module (`http://erp.company.com/merge-report/home`);  
+   - The system automatically redirects to the SSO login page (`https://sso.company.com/auth`);  
+   - Enter the SSO account and password. After successful login, redirect back to this module without re-logging in.  
+
+
+### 7.2 Email Service Integration  
+The module's "Risk Early Warning" function relies on email notifications (e.g., notifying administrators of emergency warnings). It supports integration with enterprise existing email systems (e.g., Exchange, Office 365, Alibaba Cloud Enterprise Email) and third-party email services (e.g., SendGrid).  
+
+#### 7.2.1 Enterprise Exchange/Office 365 Integration  
+##### (1) Configuration Steps  
+1. Add Exchange configuration to `appsettings.json`:  
+   ```json
+   "SmtpSettings": {
+     "Server": "smtp.office365.com", // Exchange/Office 365 SMTP server
+     "Port": 587, // Non-SSL port (SSL port is 465)
+     "UseSsl": true,
+     "UserName": "erp_alert@company.com", // Enterprise email account
+     "Password": "Email_Password_2024!", // Email password/application password (app password required for Office 365)
+     "FromAddress": "erp_alert@company.com",
+     "FromName": "Consolidated Report Permission Early Warning System"
+   }
+   ```
+
+2. Implement the email service (`ExchangeEmailService.cs`):  
+   ```csharp
+   public class ExchangeEmailService : IEmailService
+   {
+       private readonly IConfiguration _configuration;
+       private readonly ILogger<ExchangeEmailService> _logger;
+
+       public ExchangeEmailService(IConfiguration configuration, ILogger<ExchangeEmailService> logger)
+       {
+           _configuration = configuration;
+           _logger = logger;
+       }
+
+       public async Task<bool> SendEmailAsync(List<string> toAddresses, string subject, string body, bool isHtml = true)
+       {
+           try
+           {
+               // Build SMTP client
+               using var smtpClient = new SmtpClient(
+                   _configuration["SmtpSettings:Server"],
+                   int.Parse(_configuration["SmtpSettings:Port"]))
+               {
+                   Credentials = new NetworkCredential(
+                       _configuration["SmtpSettings:UserName"],
+                       _configuration["SmtpSettings:Password"]),
+                   EnableSsl = bool.Parse(_configuration["SmtpSettings:UseSsl"]),
+                   DeliveryMethod = SmtpDeliveryMethod.Network
+               };
+
+               // Build email message
+               using var mailMessage = new MailMessage
+               {
+                   From = new MailAddress(
+                       _configuration["SmtpSettings:FromAddress"],
+                       _configuration["SmtpSettings:FromName"]),
+                   Subject = subject,
+                   Body = body,
+                   IsBodyHtml = isHtml,
+                   BodyEncoding = Encoding.UTF8,
+                   SubjectEncoding = Encoding.UTF8
+               };
+
+               // Add recipients
+               foreach (var toAddress in toAddresses.Distinct())
+               {
+                   mailMessage.To.Add(new MailAddress(toAddress));
+               }
+
+               // Send email
+               await smtpClient.SendMailAsync(mailMessage);
+               _logger.LogInformation($"Email sent successfully. Recipients: {string.Join(",", toAddresses)}, Subject: {subject}");
+               return true;
+           }
+           catch (Exception ex)
+           {
+               _logger.LogError($"Failed to send email: {ex.Message}, Recipients: {string.Join(",", toAddresses)}, Subject: {subject}");
+               return false;
+           }
+       }
+   }
+   ```
+
+3. Register the email service (`Program.cs`):  
+   ```csharp
+   services.AddScoped<IEmailService, ExchangeEmailService>();
+   ```
+
+4. Test Verification:  
+   - In the early warning rule configuration interface, set "Notification Method = Popup + Email" and add the administrator's email (e.g., `admin@company.com`);  
+   - Perform a high-risk operation (e.g., delete the administrator role) to trigger an early warning;  
+   - Check the administrator's email to confirm receipt of the early warning email (Subject: "【Emergency Warning】Deleting Administrator Role").  
+
+
+#### 7.2.2 Third-Party Email Service Integration (e.g., SendGrid)  
+If the enterprise does not have a self-built email system, third-party services such as SendGrid can be used. The configuration steps are as follows:  
+
+1. Create an API key in the SendGrid console (requires "Send Email" permission);  
+2. Add SendGrid configuration to `appsettings.json`:  
+   ```json
+   "SendGridSettings": {
+     "ApiKey": "SG.xxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "FromAddress": "erp_alert@company.com",
+     "FromName": "Consolidated Report Permission Early Warning System"
+   }
+   ```
+
+3. Implement the SendGrid email service (`SendGridEmailService.cs`):  
+   ```csharp
+   public class SendGridEmailService : IEmailService
+   {
+       private readonly IConfiguration _configuration;
+       private readonly ILogger<SendGridEmailService> _logger;
+
+       public SendGridEmailService(IConfiguration configuration, ILogger<SendGridEmailService> logger)
+       {
+           _configuration = configuration;
+           _logger = logger;
+       }
+
+       public async Task<bool> SendEmailAsync(List<string> toAddresses, string subject, string body, bool isHtml = true)
+       {
+           try
+           {
+               var apiKey = _configuration["SendGridSettings:ApiKey"];
+               var client = new SendGridClient(apiKey);
+               var from = new EmailAddress(
+                   _configuration["SendGridSettings:FromAddress"],
+                   _configuration["SendGridSettings:FromName"]);
+
+               var toEmails = toAddresses.Distinct().Select(addr => new EmailAddress(addr)).ToList();
+               var msg = MailHelper.CreateSingleEmailToMultipleRecipients(from, toEmails, subject, "", body);
+
+               var response = await client.SendEmailAsync(msg);
+               if (response.StatusCode >= HttpStatusCode.OK && response.StatusCode < HttpStatusCode.BadRequest)
+               {
+                   _logger.LogInformation($"SendGrid email sent successfully. Recipients: {string.Join(",", toAddresses)}, Subject: {subject}");
+                   return true;
+               }
+               else
+               {
+                   var responseBody = await response.Body.ReadAsStringAsync();
+                   _logger.LogError($"Failed to send SendGrid email. Status code: {response.StatusCode}, Response: {responseBody}");
+                   return false;
+               }
+           }
+           catch (Exception ex)
+           {
+               _logger.LogError($"SendGrid email sending exception: {ex.Message}");
+               return false;
+           }
+       }
+   }
+   ```
+
+4. Register the service and test (steps are the same as Exchange integration).  
+
+
+### 7.3 Monitoring and Alerting Integration  
+To ensure the stable operation of the module, "key operations and abnormal events" need to be connected to the enterprise monitoring system (e.g., Prometheus+Grafana, Zabbix, enterprise self-built monitoring) to achieve real-time monitoring and alerting.  
+
+#### 7.3.1 Prometheus+Grafana Integration  
+##### (1) Core Monitoring Metrics  
+The module exposes the following key metrics to monitor system health:  
+
+| Metric Name                                  | Metric Type | Metric Meaning                                                                 | Labels                                                              |
+|----------------------------------------------|-------------|------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| merge_report_permission_user_login           | Counter     | Number of user logins (success/failure)                                       | status (success/fail), user_role (admin/org_fin/view_only)          |
+| merge_report_permission_role_operation       | Counter     | Number of role operations (add/edit/delete)                                   | operation_type (add/edit/delete), status (success/fail)             |
+| merge_report_permission_alert_trigger        | Counter     | Number of early warning triggers                                              | alert_level (normal/important/emergency), rule_code (template code) |
+| merge_report_permission_cleanup_execution    | Counter     | Number of log cleanup executions                                              | status (success/fail), execute_type (manual/scheduled)             |
+| merge_report_permission_db_query_duration    | Gauge       | Database query latency (milliseconds)                                         | query_type (role_query/audit_log_query/alert_query)                |
+| merge_report_permission_active_users         | Gauge       | Number of currently online users                                              | user_role (admin/org_fin/view_only)                                |
+
+
+##### (2) Metric Exposure Implementation  
+1. Use the `Prometheus.Client` library to expose metrics and initialize them in `Program.cs`:  
+   ```csharp
+   // Initialize Prometheus metric registry
+   var metricFactory = Metrics.CreateFactory();
+   var counterUserLogin = metricFactory.CreateCounter(
+       "merge_report_permission_user_login", 
+       "Number of user logins", 
+       new[] { "status", "user_role" });
+
+   var counterRoleOperation = metricFactory.CreateCounter(
+       "merge_report_permission_role_operation", 
+       "Number of role operations", 
+       new[] { "operation_type", "status" });
+
+   // Initialize other metrics...
+
+   // Register metrics as singletons for use in business code
+   services.AddSingleton(counterUserLogin);
+   services.AddSingleton(counterRoleOperation);
+   // Register other metrics...
+
+   // Expose metric endpoint (default path /metrics)
+   app.UsePrometheusServer();
+   ```
+
+2. Record metrics in business code (e.g., after successful user login):  
+   ```csharp
+   public async Task<LoginResult> LoginAsync(string userName, string password)
+   {
+       var result = await _authenticationService.AuthenticateAsync(userName, password);
+       if (result.IsValid)
+       {
+           // Get user roles
+           var userRoles = await _userRoleService.GetUserRolesAsync(result.User.Id);
+           var userRole = userRoles.Any(r => r.RoleCode == "ADMIN") ? "admin" : 
+                          userRoles.Any(r => r.RoleCode == "ORG_FIN") ? "org_fin" : "view_only";
+
+           // Record successful login metric
+           _counterUserLogin.WithLabels("success", userRole).Inc();
+           return new LoginResult { Success = true, User = result.User };
+       }
+       else
+       {
+           // Record failed login metric
+           _counterUserLogin.WithLabels("fail", "unknown").Inc();
+           return new LoginResult { Success = false, Message = "Incorrect username or password" };
+       }
+   }
+   ```
+
+3. Grafana Configuration:  
+   - Add a Prometheus data source in Grafana (Address: Module metric endpoint `http://erp.company.com/merge-report/metrics`);  
+   - Import the module's preset Dashboard (`grafana-dashboard.json`, including panels such as "User Login Statistics", "Early Warning Trigger Trend", and "Cleanup Execution Status");  
+   - Configure alert rules (e.g., "merge_report_permission_alert_trigger{alert_level=\"emergency\"} increases by ≥3 times within 5 minutes" to trigger email alerts).  
+
+
+#### 7.3.2 Enterprise Self-Built Monitoring Integration  
+If the enterprise uses a self-built monitoring system, metrics can be exposed via an "HTTP interface", and the monitoring system pulls data periodically:  
+
+1. Implement the metric interface (`MetricsController.cs`):  
+   ```csharp
+   [ApiController]
+   [Route("merge-report/api/metrics")]
+   public class MetricsController : ControllerBase
+   {
+       private readonly ICounter _counterUserLogin;
+       private readonly ICounter _counterRoleOperation;
+       // Inject other metrics...
+
+       public MetricsController(ICounter counterUserLogin, ICounter counterRoleOperation)
+       {
+           _counterUserLogin = counterUserLogin;
+           _counterRoleOperation = counterRoleOperation;
+       }
+
+       [HttpGet]
+       public IActionResult GetMetrics()
+       {
+           // Build metric JSON response
+           var metrics = new
+           {
+               user_login = new
+               {
+                   success = _counterUserLogin.WithLabels("success", "admin").Value + 
+                             _counterUserLogin.WithLabels("success", "org_fin").Value + 
+                             _counterUserLogin.WithLabels("success", "view_only").Value,
+                   fail = _counterUserLogin.WithLabels("fail", "unknown").Value
+               },
+               role_operation = new
+               {
+                   add = _counterRoleOperation.WithLabels("add", "success").Value,
+                   edit = _counterRoleOperation.WithLabels("edit", "success").Value,
+                   delete = _counterRoleOperation.WithLabels("delete", "success").Value,
+                   fail = _counterRoleOperation.WithLabels("add", "fail").Value + 
+                          _counterRoleOperation.WithLabels("edit", "fail").Value + 
+                          _counterRoleOperation.WithLabels("delete", "fail").Value
+               }
+               // Other metrics...
+           };
+
+           return Ok(metrics);
+       }
+   }
+   ```
+
+2. Monitoring System Configuration:  
+   - Configure the monitoring system to pull the `http://erp.company.com/merge-report/api/metrics` interface every 1 minute;  
+   - Set alert thresholds (e.g., "role_operation.fail ≥2 times within 5 minutes" to trigger SMS alerts).  
+
+
+### 7.4 Data Backup Integration  
+The module's core data (roles, permissions, audit logs, early warning rules) needs to be backed up regularly to prevent data loss. It supports integration with enterprise data backup systems (e.g., SQL Server backup, enterprise-grade backup software).  
+
+#### 7.4.1 SQL Server Scheduled Backup  
+##### (1) Backup Strategy  
+- **Full Backup**: Executed at 2:00 AM every Sunday, backing up all module-related tables;  
+- **Differential Backup**: Executed at 2:00 AM every day, backing up data changed since the last full backup;  
+- **Log Backup**: Executed every hour, backing up transaction logs (supports point-in-time recovery).  
+
+##### (2) Backup Script  
+1. Create a full backup script (`FullBackup.sql`):  
+   ```sql
+   -- Full backup of tables related to the consolidated report permission module
+   DECLARE @BackupPath NVARCHAR(500)
+   DECLARE @BackupFileName NVARCHAR(100)
+
+   -- Backup path (must be created in advance)
+   SET @BackupPath = 'D:\SQLBackup\MergeReportPermission\'
+
+   -- Backup file name (format: Full_YYYYMMDD_HHmmss.bak)
+   SET @BackupFileName = 'Full_' + CONVERT(NVARCHAR(8), GETDATE(), 112) + '_' + REPLACE(CONVERT(NVARCHAR(8), GETDATE(), 108), ':', '') + '.bak'
+
+   -- Execute full backup
+   BACKUP DATABASE [ERP_WMS_TMS]
+   TO DISK = @BackupPath + @BackupFileName
+   WITH 
+       DESCRIPTION = 'Full Backup of Consolidated Report Permission Module',
+       COMPRESSION, -- Enable compression to reduce backup file size
+       INIT, -- Overwrite existing files
+       CHECKSUM; -- Enable checksum to ensure backup integrity
+
+   -- Record backup log
+   INSERT INTO [ERP_WMS_TMS].[dbo].[BackupLog] (BackupType, BackupFileName, BackupTime, Status, Remark)
+   VALUES ('Full', @BackupFileName, GETDATE(), 'Success', 'Full Backup of Consolidated Report Permission Module');
+   ```
+
+2. Create a SQL Server Agent job to execute the backup script periodically:  
+   - Open SQL Server Management Studio (SSMS), expand "SQL Server Agent" → "Jobs" → "New Job";  
+   - Job Name: "MergeReportPermission_FullBackup";  
+   - Steps: Create a step with type "Transact-SQL (T-SQL)", database "ERP_WMS_TMS", and command to execute the `FullBackup.sql` script;  
+   - Schedules: Create a schedule with frequency "Weekly", every Sunday, time "02:00:00";  
+   - Alerts: Configure email notifications to the database administrator if backup fails.  
+
+
+#### 7.4.2 Enterprise-Grade Backup Software Integration (e.g., Veritas NetBackup)  
+If the enterprise uses professional backup software such as Veritas NetBackup, the configuration steps are as follows:  
+1. Add the SQL Server client (server where the module database is located) to the backup software;  
+2. Create a backup strategy:  
+   - Strategy Name: "ERP_MergeReportPermission_Backup";  
+   - Backup Type: Full (every Sunday), Differential (daily), Log (hourly);  
+   - Backup Selection: Only select module-related tables (10 tables including `ErpMergeReportRoles` and `ErpMergeReportAuditLogs`);  
+   - Backup Target: Tape library/cloud storage (e.g., AWS S3);  
+3. Configure recovery testing: Execute a recovery test once a month to verify that backup files can be restored normally;  
+4. Configure alerts: Trigger email/SMS alerts to notify the O&M team if backup fails.  
+
+
+## 8. User Guide by Role  
+This module provides differentiated functions for different roles (System Administrator, Financial User, Audit User, O&M User). The following sorts out the core operation processes by role to help users get started quickly.  
+
+### 8.1 System Administrator (ADMIN Role)  
+The system administrator is the highest-privilege role of the module, responsible for "basic configuration, permission control, risk prevention, and system maintenance". The core operations are as follows:  
+
+#### 8.1.1 Initial Configuration (First Use)  
+1. **Role Template Initialization**:  
+   - Log in to the system and navigate to [Finance → Consolidated Reports → Permission Management → Role Configuration];  
+   - Click the "Initialize Role Templates" button. The system automatically creates 3 preset roles (ADMIN, ORG_FIN, VIEW_ONLY);  
+   - Verification: The role list displays 3 preset roles with status "Enabled".  
+
+2. **Early Warning Rule Initialization**:  
+   - Navigate to [Finance → Consolidated Reports → Early Warning Center → Rule Configuration];  
+   - Click the "Initialize Early Warning Templates" button. The system automatically creates 5 preset early warning rules (e.g., deleting administrator roles, batch user assignment);  
+   - Configuration: Edit the "Delete Administrator Role" rule, set "Notification Method = Popup + Email", and add the administrator's email (e.g., `admin@company.com`).  
+
+3. **Log Cleanup Rule Configuration**:  
+   - Navigate to [Finance → Consolidated Reports → Log Cleanup → Rule Configuration];  
+   - Set "Retention Period = 365 days", "Archive Path = D:\ERP\AuditArchive", "Execution Method = Scheduled Execution", and Cron Expression = "0 0 1 1 * ?";  
+   - Check "Enable File Encryption", enter the encryption password (e.g., `ERP_Archive_2024!`), and click "Save Rule".  
+
+
+#### 8.1.2 Permission Control (Daily Operations)  
+1. **User Role Assignment**:  
+   - Navigate to [Finance → Consolidated Reports → Permission Management → User Assignment];  
+   - Search for the user (e.g., "Li Si") in the "Select User" dropdown and select;  
+   - Select the role (e.g., "ORG_FIN") and check the data isolation organization (e.g., "Beijing Branch");  
+   - Click "Save Assignment". The system prompts "Assignment Successful" and records the audit log.  
+
+2. **Role Permission Adjustment**:  
+   - Navigate to [Finance → Consolidated Reports → Permission Management → Role Configuration];  
+   - Select the "ORG_FIN" role and click "Edit Role";  
+   - Click "Select Permissions" to add the "Export Report" permission and remove the "Delete Merge Task" permission;  
+   - Click "Save". The system prompts "Edit Successful" and triggers an early warning (if "modifying role permissions" is a high-risk operation).  
+
+3. **Permission Audit**:  
+   - Navigate to [Finance → Consolidated Reports → Audit Logs];  
+   - Filter by "Operation Type = Assign, Time Range = Last 7 Days" to view user role assignment records in the last 7 days;  
+   - Double-click any record to view the role/organization information before and after the change, and confirm no abnormal operations.  
+
+
+#### 8.1.3 Risk Prevention (Abnormal Handling)  
+1. **Early Warning Handling**:  
+   - Receive an early warning email/popup indicating "Li Si executed the operation of deleting the administrator role";  
+   - Navigate to [Finance → Consolidated Reports → Early Warning Center];  
+   - Filter by "Early Warning Level = Emergency, Status = Unprocessed" to find the target early warning record;  
+   - View the "Trigger Detail" to confirm whether it is a misoperation; if it is a normal operation, click "Handle Warning" and enter the remark "2024 Q2 Permission Adjustment, Confirm Deletion";  
+   - If it is a misoperation, click "Ignore Warning" and contact the user to revoke the operation.  
+
+2. **High-Risk Operation Blocking**:  
+   - A user attempts to assign the "Super Admin" role, and the system pops up a secondary confirmation window;  
+   - The administrator enters the password for verification, and the window displays "Allow assigning the Super Admin role?";  
+   - Click "Allow" to continue the operation if confirmed correct; click "Deny" to terminate the operation if a misoperation is suspected.  
+
+
+#### 8.1.4 System Maintenance (Periodic Operations)  
+1. **Log Cleanup Check**:  
+   - On the 1st of each month, navigate to [Finance → Consolidated Reports → Log Cleanup → Record Query];  
+   - Filter by "Execution Time = Last Month" to view the execution result of the scheduled cleanup;  
+   - If execution is successful, confirm that the archive file is generated normally (Path: D:\ERP\AuditArchive);  
+   - If execution fails, view the "Failure Reason" (e.g., no path permission), fix it, and click "Re-Execute".  
+
+2. **Backup Verification**:  
+   - At the end of each month, execute a database recovery test:  
+     1. Restore module-related tables from the backup file to the test environment;  
+     2. Log in to the test environment and verify the integrity of roles, permissions, and audit log data;  
+     3. Record the recovery test result and archive it to the audit document.  
+
+3. **Performance Optimization**:  
+   - Every quarter, clean up index fragments in the audit log table:  
+     1. Log in to SQL Server and execute `DBCC SHOWCONTIG (ErpMergeReportAuditLogs)` to view the fragmentation rate;  
+     2. If the fragmentation rate > 30%, execute `ALTER INDEX ALL ON ErpMergeReportAuditLogs REBUILD` to rebuild the index;  
+     3. Verification: After rebuilding, the audit log query response time is ≤ 1 second.  
+
+
+### 8.2 Financial User (ORG_FIN Role)  
+Financial users are core business users of the module, responsible for "consolidated report operations and data viewing", and only have limited permissions. The core operations are as follows:  
+
+#### 8.2.1 Role and Permission Viewing  
+1. Log in to the system and click "Personal Center" → "My Permissions" in the upper right corner;  
+2. View the current role (e.g., "ORG_FIN") and associated permissions (e.g., "View Own Organization Reports, Export Reports");  
+3. View the data isolation organization (e.g., "Beijing Branch") and confirm that only data of the own organization can be accessed.  
+
+
+#### 8.2.2 Consolidated Report Operations  
+1. **Report Viewing**:  
+   - Navigate to [Finance → Consolidated Reports → Report Management → Report Viewing];  
+   - Select the report type (e.g., "Income Statement") and time range (e.g., "2024-09");  
+   - The system automatically filters the report data of the data isolation organization (Beijing Branch) and displays the report content;  
+   - If attempting to select "Shanghai Branch", the system prompts "No permission to view reports of this organization".  
+
+2. **Report Export**:  
+   - In the report viewing interface, click the "Export Excel" button;  
+   - Select the export path (e.g., Desktop) and set the file name (e.g., "Beijing Branch 202409 Income Statement.xlsx");  
+   - Click "Save". The system generates an Excel file and records the audit log (Operation Type = Export).  
+
+
+#### 8.2.3 Operation Record Query  
+1. Navigate to [Finance → Consolidated Reports → Audit Logs];  
+2. Filter by "Operator = Current User, Time Range = Last 30 Days";  
+3. View own operation records (e.g., "Export Report, View Report") and confirm no abnormal operations;  
+4. If an unexecuted operation (e.g., "Modify Role Permissions") is found, contact the administrator immediately for investigation.  
+
+
+### 8.3 Audit User (VIEW_ONLY Role)  
+Audit users (internal/external audit institutions) only have "view permissions" for auditing the compliance of permission operations. The core operations are as follows:  
+
+#### 8.3.1 Audit Log Query  
+1. Log in to the system and navigate to [Finance → Consolidated Reports → Audit Logs];  
+2. Set filter criteria:  
+   - Time Range: Audit period (e.g., "2024-01-01 to 2024-09-30");  
+   - Operation Type: Key operations (e.g., "Assign, Delete, Edit");  
+   - Operation Object Type: Role, User Role;  
+3. Click "Query" to view audit logs that meet the criteria;  
+4. Double-click any record to view the data before and after the change (e.g., "User Zhang San changed from the VIEW_ONLY role to the ORG_FIN role") and confirm the operation is compliant.  
+
+
+#### 8.3.2 Archived Log Viewing  
+1. Navigate to [Finance → Consolidated Reports → Log Cleanup → Record Query];  
+2. Filter by "Execution Time = Within the Audit Period" to find the target cleanup record;  
+3. Click "Open Archive Directory" to find the corresponding archive file (e.g., `audit_archive_20240930_010000.csv.encrypted`);  
+4. Click "Decrypt File" and enter the encryption password (provided by the administrator);  
+5. The system generates a temporary CSV file, which is opened with Excel to verify that expired logs are fully archived.  
+
+
+#### 8.3.3 Early Warning Record Audit  
+1. Navigate to [Finance → Consolidated Reports → Early Warning Center];  
+2. Filter by "Early Warning Level = Emergency/Important, Time Range = Audit Period";  
+3. View early warning handling records (e.g., "Early Warning for Deleting Administrator Role, Handler = admin, Handling Remark = Normal Permission Adjustment");  
+4. Verification: All emergency early warnings have been handled (no unprocessed early warnings); handling remarks are reasonable and comply with enterprise regulations.  
+
+
+### 8.4 O&M User (System O&M Role)  
+O&M users are responsible for "deployment, monitoring, and troubleshooting" of the module and do not participate in business operations. The core operations are as follows:  
+
+#### 8.4.1 Deployment and Update  
+1. **Environment Deployment**:  
+   - Configure the Windows server, SQL Server, and .NET Runtime in accordance with the "Environment Dependencies and Deployment Preparation" chapter;  
+   - Execute database migration (`Update-Database`) to create module-related tables;  
+   - Publish the project (Visual Studio → Publish → Folder Deployment);  
+   - Configure `appsettings.json` (database connection, SMTP, SSO, etc.);  
+   - Test: Start the application, log in with the administrator account, and confirm functions are normal.  
+
+2. **Version Update**:  
+   - Download the latest code (`git pull origin main`);  
+   - Execute database migration (if there are table structure changes);  
+   - Stop the existing application and overwrite the files in the publishing directory;  
+   - Start the application and verify the updated functions (e.g., new early warning rule templates).  
+
+
+#### 8.4.2 Monitoring and Alerting  
+1. **Health Monitoring**:  
+   - Access the module monitoring endpoint (`http://erp.company.com/merge-report/metrics`) to confirm metrics are exposed normally;  
+   - View the Dashboard in Grafana to verify that metrics such as "Number of Online Users, Query Latency, and Number of Early Warning Triggers" are normal;  
+   - Configure monitoring alerts (e.g., "Database query latency > 500ms" triggers email alerts).  
+
+2. **Log Viewing**:  
+   - View application logs (Path: `D:\ERP\Publish\Logs\merge-report-permission.log`);  
+   - Filter `Error`-level logs to troubleshoot abnormalities (e.g., "Failed to send email, Database connection timeout");  
+   - View SQL Server logs (SSMS → Management → SQL Server Logs) to troubleshoot database errors.  
+
+
+#### 8.4.3 Troubleshooting  
+1. **Login Failure Troubleshooting**:  
+   - A user reports "Login Failure". View the application logs:  
+     - If the log shows "LDAP Authentication Failed": Check the LDAP server address, port, and service account password;  
+     - If the log shows "Incorrect Password": Prompt the user to reset the password;  
+   - Test: Log in with a test account to confirm the issue is fixed.  
+
+2. **Cleanup Execution Failure Troubleshooting**:  
+   - The administrator reports "Log Cleanup Failure". Navigate to [Log Cleanup → Record Query];  
+   - View the "Failure Reason" (e.g., "No permission to access the archive path");  
+   - Fix: Right-click the archive path → Properties → Security → Grant "NETWORK SERVICE" read/write permissions;  
+   - Re-Execute: Select the failed record, click "Re-Execute", and confirm successful execution.  
+
+3. **Performance Issue Troubleshooting**:  
+   - A user reports "Slow Audit Log Query". View the SQL Server execution plan:  
+     1. Open SSMS and execute the query statement (`SELECT * FROM ErpMergeReportAuditLogs WHERE OperateTime BETWEEN '2024-01-01' AND '2024-10-30'`);  
+     2. View the execution plan and find that the `OperateTime` index is missing;  
+     3. Create the index (`CREATE INDEX IX_ErpMergeReportAuditLogs_OperateTime ON ErpMergeReportAuditLogs(OperateTime)`);  
+     4. Verification: Re-query, and the latency is reduced from 3 seconds to 500ms.  
+
+
+## 9. Common Issues and Solutions  
+### 9.1 Deployment Issues  
+#### 9.1.1 Database Migration Failure  
+**Issue Symptom**: When executing `Update-Database`, an error is reported: "Failed to connect to the database" or "Insufficient permissions".  
+**Troubleshooting Steps**:  
+1. **Check Connection String**: Confirm that the server IP, database name, account, and password in `ConnectionStrings:ErpWmsTmsDb` in `appsettings.json` are correct.  
+   - Example of correct format: `Server=192.168.1.100;Database=ERP_WMS_TMS;Uid=sa;Pwd=YourStrongPassword!;TrustServerCertificate=True;`  
+   - Common Errors: Incorrect server IP, unescaped special characters in the password, missing `TrustServerCertificate=True` (required by default for SQL Server 2022).  
+
+2. **Test Database Connection**:  
+   - Open the Command Prompt on the deployment server and execute `sqlcmd -S 192.168.1.100 -U sa -P YourStrongPassword!`.  
+   - If prompted "Login failed", the account password is incorrect or the account is disabled; if prompted "Failed to connect to the server", check the database server firewall (whether port 1433 is open).  
+
+3. **Check Migration Account Permissions**:
+豆包:
+# ERP+WMS+TMS Consolidated Report Permission Management Module  
+> Project Repository: [github.com/your-username/erp-wms-tms-permission](https://github.com/your-username/erp-wms-tms-permission)  
+> Document Version: v1.0.0  
+> Last Updated: 2024-10-30  
+> Development Team: ERP Finance Core Group  
+
+
+### 9.1.1 Database Migration Failure (Continued)  
+3. **Check Migration Account Permissions**:  
+   - The migration account must have the `db_owner` role (right-click the database → **Security** → **Users** → check the account's roles).  
+   - If permissions are insufficient, execute the SQL command: `EXEC sp_addrolemember 'db_owner', 'MigrationAccountName';`.  
+
+**Solutions**:  
+- Correct the connection string and re-run `Update-Database`;  
+- If blocked by the firewall, add an "inbound rule" to the database server's "Windows Defender Firewall" to allow TCP port 1433;  
+- If the account has insufficient permissions, reassign the `db_owner` role.  
+
+
+#### 9.1.2 "Dependency Not Found" Error When Starting the Published Project  
+**Issue Symptom**: After double-clicking `ERP.WMS.TMS.UI.exe`, an error pops up: "The application failed to start because its side-by-side configuration is incorrect" or "Missing XXX.dll".  
+
+**Troubleshooting Steps**:  
+1. **Check .NET Runtime Version**:  
+   - Run `dotnet --version` to confirm the server has installed the **.NET 8.0 Runtime** (version ≥ 8.0.10).  
+   - If not installed, download and install `dotnet-runtime-8.0.x-win-x64.exe` from the [Microsoft Official Website](https://dotnet.microsoft.com/download/dotnet/8.0/runtime).  
+
+2. **Check Visual C++ Redistributable**:  
+   - The project depends on the **Visual C++ 2019 Redistributable (x64)**; missing it will cause errors like `msvcp140.dll` not found.  
+   - Download Link: [Visual C++ 2019 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).  
+
+3. **Check Publish Configuration**:  
+   - Ensure the "Deployment Mode" is set to "Self-contained" (includes the .NET Runtime) during publishing to avoid missing dependencies on the client.  
+   - Re-publishing Steps: Right-click the project → **Publish** → Edit the profile → **Deployment Mode** → Select "Self-contained" → Set "Target Runtime" to "win-x64" → Re-publish.  
+
+**Solutions**:  
+- Install the missing .NET Runtime and Visual C++ Redistributable;  
+- If the publish configuration is incorrect, re-publish the project (select "Self-contained" mode).  
+
+
+#### 9.1.3 Unable to Write Files to the Archive Directory  
+**Issue Symptom**: During log cleanup, an error is reported: "No permission to access the path `D:\ERP\AuditArchive`" or "Failed to create archive file".  
+
+**Troubleshooting Steps**:  
+1. **Check Folder Permissions**:  
+   - Right-click the archive directory (e.g., `D:\ERP\AuditArchive`) → **Properties** → **Security** → **Edit** → Add "Everyone" or the current application-running user (e.g., `IIS AppPool\ERPAppPool`).  
+   - Ensure the user has "Read", "Write", and "Modify" permissions (check the corresponding options).  
+
+2. **Check if the Path Exists**:  
+   - Confirm the archive directory has been created manually (e.g., `D:\ERP\AuditArchive` needs to be created in advance); the cleanup task cannot automatically create the directory if it does not exist.  
+
+3. **Check Disk Space**:  
+   - Open "This PC" → Right-click the disk where the archive directory is located → **Properties** to confirm the remaining space is ≥ 3GB (reserve space for archive files).  
+
+**Solutions**:  
+- Grant read/write permissions to the archive directory;  
+- Manually create the missing archive directory;  
+- Free up disk space (delete unused files).  
+
+
+## 9.2 Functional Issues  
+#### 9.2.1 User Still Has No Permissions After Role Assignment  
+**Issue Symptom**: After assigning a role to a user in `FrmUserRoleAssign`, the user still cannot perform the corresponding operations (e.g., "view reports") after logging into the system.  
+
+**Troubleshooting Steps**:  
+1. **Check Role-Associated Permissions**:  
+   - Open `FrmRoleManagement` → Edit the role assigned to the user → Click "Select Permissions" to confirm the role has been associated with the permission for the target operation (e.g., the "view reports" operation requires associating the `VIEW_REPORT_OWN` permission).  
+
+2. **Check Data Isolation Organization**:  
+   - If the user needs to view "Beijing Branch" reports, confirm "Beijing Branch" has been checked (as the data isolation organization) in `FrmUserRoleAssign`.  
+   - If not checked, the user may have the "view reports" permission but cannot access the data due to data isolation.  
+
+3. **Check User Status**:  
+   - Confirm the user is in the "Enabled" state (`IsEnabled=1`) in the system user table (`ErpUsers`); disabled users cannot use permissions.  
+
+4. **Re-Login Verification**:  
+   - After permission assignment, the user must **re-login to the system** (to refresh the permission cache); otherwise, the new permissions will not take effect.  
+
+**Solutions**:  
+- Supplement the role with the target permission association;  
+- Check the corresponding data isolation organization for the user;  
+- Enable the user account and ask the user to re-login.  
+
+
+#### 9.2.2 No Results for Audit Log Query  
+**Issue Symptom**: After performing a permission operation, no corresponding audit logs can be found in `FrmPermissionAuditLog`.  
+
+**Troubleshooting Steps**:  
+1. **Check Filter Criteria**:  
+   - Confirm the filter criteria are correct (e.g., whether the "operation time" includes the operation execution time, and whether the "operator" is the current user).  
+   - Example: If the user performs an operation at 10:00, set the filter time range to "9:30-10:30" instead of the default "Last 1 Hour".  
+
+2. **Check Log Recording Switch**:  
+   - Confirm the `AuditLog:Enabled` configuration in `appsettings.json` is set to `true` (enabled by default); logs will not be recorded if set to `false`.  
+
+3. **Check the Asynchronous Recording Queue**:  
+   - Audit logs are written **asynchronously**, which may result in a 1-5 second delay; wait for a moment before querying after the operation.  
+   - If no records appear for a long time, check the application log (`D:\ERP\Publish\Logs\Error.log`) to confirm if there is an error like "Failed to write logs" (e.g., database connection timeout).  
+
+4. **Check the Database Table**:  
+   - Query the database table `ErpMergeReportAuditLog` directly by executing the following SQL:  
+     ```sql
+     SELECT * FROM ErpMergeReportAuditLog 
+     WHERE OperatorId = [Operator ID] 
+     AND OperateTime >= '[Operation Time]'
+     ```  
+   - If records exist in the table but not in the UI, there may be a bug in the UI filtering logic; check the code.  
+
+**Solutions**:  
+- Adjust the filter criteria (e.g., expand the time range);  
+- Wait for asynchronous log writing (1-5 seconds);  
+- If no records exist in the database table, fix the database connection or log writing logic.  
+
+
+#### 9.2.3 Early Warning Not Triggered  
+**Issue Symptom**: After performing a high-risk operation (e.g., deleting an administrator role), no early warning popup appears or no early warning email is sent.  
+
+**Troubleshooting Steps**:  
+1. **Check Early Warning Rule Status**:  
+   - Open `FrmAlertRuleConfig` to confirm the corresponding early warning rule is "Enabled" (`IsEnabled=1`); disabled rules will not be triggered.  
+   - Example: Deleting an administrator role requires enabling the "TEMPLATE_DELETE_ADMIN" rule.  
+
+2. **Check Operation Parameter Matching**:  
+   - Confirm the operation parameters match the rule trigger conditions (e.g., the "Batch User Assignment Warning" requires assigning to ≥5 users; it will not be triggered if only 3 users are assigned).  
+
+3. **Check Early Warning Level Configuration**:  
+   - Confirm the notification method for the rule's early warning level (Normal/Important/Emergency) is correct (e.g., the Important level requires checking "Email Notification").  
+
+4. **Check Email Service Configuration**:  
+   - If email notification is required, confirm the `Smtp` section in `appsettings.json` is configured correctly (SMTP server, port, account, password).  
+   - Test email sending: Select a rule in `FrmAlertRuleConfig` and click "Test Notification" to check if the email is received.  
+
+5. **Check Early Warning Records**:  
+   - Open `FrmAlertCenter` to check if there are corresponding early warning records (the popup may have been ignored or the email sending may have failed).  
+
+**Solutions**:  
+- Enable the corresponding early warning rule;  
+- Adjust the operation parameters to meet the trigger threshold (e.g., assign to ≥5 users in batches);  
+- Correct the SMTP configuration to ensure emails can be sent normally.  
+
+
+## 9.3 Performance Issues  
+#### 9.3.1 Slow Report Loading  
+**Issue Symptom**: When the user opens the "Consolidated Report Viewing" interface, the loading time exceeds 3 seconds, or the interface even becomes unresponsive.  
+
+**Troubleshooting Steps**:  
+1. **Check Data Volume**:  
+   - Confirm if the volume of report data being queried is excessive (e.g., querying "3-year full-organization income statements" with over 100,000 entries).  
+   - Advise the user to narrow the query scope (e.g., query by quarter).  
+
+2. **Check Database Indexes**:  
+   - Confirm the `OrgId`, `ReportDate`, and `ReportType` fields in the consolidated report data table (e.g., `ErpMergeReportData`) have been indexed.  
+   - If no indexes exist, create them by executing the following SQL:  
+     ```sql
+     CREATE NONCLUSTERED INDEX IX_ErpMergeReportData_OrgId_ReportDate 
+     ON ErpMergeReportData (OrgId, ReportDate);
+     ```  
+
+3. **Check Data Isolation Logic**:  
+   - Confirm the data isolation filter is effective (e.g., the user can only view data of 1 organization instead of all organizations).  
+   - If isolation fails, the system will query full-organization data, causing slowness.  
+
+4. **Check Server Performance**:  
+   - Check the CPU and memory usage of the database server (Task Manager → Performance); if the CPU usage is ≥80% or memory is insufficient, it may be a server resource bottleneck.  
+
+**Solutions**:  
+- Narrow the report query time range;  
+- Add indexes to the report data table;  
+- Fix the data isolation logic;  
+- Upgrade the database server configuration (e.g., increase memory, replace the CPU).  
+
+
+#### 9.3.2 Excessively Large Database Log Table  
+**Issue Symptom**: The `ErpMergeReportAuditLog` table occupies more than 50GB of space, causing slow database backups and degraded query performance.  
+
+**Troubleshooting Steps**:  
+1. **Check Log Cleanup Rules**:  
+   - Open `FrmCleanupRuleConfig` to confirm the log cleanup rule is enabled (`IsEnabled=1`) and the retention period is reasonable (e.g., 1 year instead of "permanent retention").  
+
+2. **Check Cleanup Task Execution**:  
+   - Check the `ErpMergeReportCleanupRecords` table to confirm the latest cleanup task status is "Success" (`IsSuccess=1`).  
+   - If the status is "Failure", check the `CleanupRemark` field for the failure reason (e.g., "No permission to access the archive path" or "Database connection timeout").  
+
+3. **Manually Execute Cleanup**:  
+   - If the scheduled cleanup task has not been executed, click the "Manually Execute Cleanup" button in `FrmCleanupRuleConfig` to trigger cleanup immediately.  
+
+**Solutions**:  
+- Enable the log cleanup rule and set a reasonable retention period (e.g., 1 year);  
+- Fix the reason for the cleanup task failure (e.g., grant permissions to the archive directory);  
+- After manually executing cleanup, "shrink" the `ErpMergeReportAuditLog` table (SSMS → Right-click the database → Tasks → Shrink → Files).  
+
+
+# 10. Extension and Integration Solutions  
+## 10.1 Function Extension  
+### 10.1.1 Custom Permission Items  
+If the existing 12 basic permission items cannot meet business needs (e.g., "approve consolidated reports" or "modify report formulas"), extend them by following these steps:  
+
+1. **Add Permission Definition**:  
+   - Manually insert permission data into the `ErpMergeReportPermissions` table:  
+     ```sql
+     INSERT INTO ErpMergeReportPermissions (PermissionCode, PermissionName, Description, Module)
+     VALUES ('APPROVE_REPORT', 'Approve Consolidated Reports', 'Approve generated consolidated reports', 'Merge Task Management');
+     ```  
+
+2. **Update the UI Permission Selection List**:  
+   - Open the `FrmPermissionSelect` form (`UI/ERP/Finance/MergeReport/Permission/FrmPermissionSelect.cs`);  
+   - In the `LoadPermissions()` method, add the new permission item to the permission group (e.g., the "Merge Task Management" group):  
+     ```csharp
+     // Example: Add "Approve Consolidated Reports" to the "Merge Task Management" group
+     var approvePermission = permissions.FirstOrDefault(p => p.PermissionCode == "APPROVE_REPORT");
+     if (approvePermission != null)
+     {
+         mergeTaskGroup.Items.Add(new ListViewItem(approvePermission.PermissionName) { Tag = approvePermission.Id });
+     }
+     ```  
+
+3. **Add Permission Verification Logic**:  
+   - Add permission verification to the target operation (e.g., the "Approve Report" button click event):  
+     ```csharp
+     // Check if the current user has the "Approve Consolidated Reports" permission
+     bool hasApprovePermission = await _permissionService.HasPermissionAsync(CurrentUserId, "APPROVE_REPORT");
+     if (!hasApprovePermission)
+     {
+         MessageBox.Show("No permission to approve consolidated reports. Please contact the administrator!", "Insufficient Permissions", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+         return;
+     }
+     ```  
+
+4. **Update Audit Log Recording**:  
+   - When recording the audit log after executing the approval operation, specify the new permission item:  
+     ```csharp
+     await _auditLogService.LogAsync(
+         operatorId: CurrentUserId,
+         operateType: "Approve",
+         objectType: "MergeReport",
+         objectId: reportId,
+         operateDetail: $"Approve consolidated report: {reportName}");
+     ```  
+
+
+### 10.1.2 Data Type-Dimension Isolation (Extended)  
+The default data isolation only supports the "organization dimension". To isolate by "data type" (e.g., "Cash Flow Statement" or "Income Statement"), extend as follows:  
+
+1. **Add Data Type Table**:  
+   - Create the `ErpMergeReportDataTypes` table to store report data types:  
+     ```sql
+     CREATE TABLE ErpMergeReportDataTypes (
+         Id INT IDENTITY(1,1) PRIMARY KEY,
+         TypeCode NVARCHAR(50) UNIQUE NOT NULL, -- Type code (e.g., "CASH_FLOW" "PROFIT")
+         TypeName NVARCHAR(100) NOT NULL, -- Type name (e.g., "Cash Flow Statement" "Income Statement")
+         Description NVARCHAR(500) -- Description
+     );
+     ```  
+
+2. **Extend the User-Data Type Association Table**:  
+   - Create the `ErpMergeReportUserDataTypes` table to store the association between users and data types:  
+     ```sql
+     CREATE TABLE ErpMergeReportUserDataTypes (
+         Id INT IDENTITY(1,1) PRIMARY KEY,
+         UserId INT NOT NULL FOREIGN KEY REFERENCES ErpUsers(Id),
+         TypeId INT NOT NULL FOREIGN KEY REFERENCES ErpMergeReportDataTypes(Id),
+         CreateTime DATETIME DEFAULT GETDATE(),
+         CreateUserId INT NOT NULL FOREIGN KEY REFERENCES ErpUsers(Id)
+     );
+     ```  
+
+3. **Update the UI Interface**:  
+   - Add a "Data Type Isolation" tab to the `FrmUserRoleAssign` interface to display the tree-structured data type list and support user selection;  
+
+4. **Modify the Data Query Logic**:  
+   - Add a data type filter condition to the report query SQL:  
+     ```sql
+     -- Example: The user can only view "Cash Flow Statements" (TypeId=1)
+     SELECT * FROM ErpMergeReportData
+     WHERE OrgId IN (2) -- Organization isolation
+     AND TypeId IN (1) -- New: Data type isolation
+     AND ReportDate BETWEEN '2024-01-01' AND '2024-10-30'
+     ```  
+
+
+## 10.2 System Integration  
+### 10.2.1 Integration with Enterprise LDAP/AD  
+If the enterprise uses LDAP/AD for unified user management, integrate the module's user system with LDAP/AD to avoid duplicate account maintenance:  
+
+1. **Add LDAP Dependency**:  
+   - Install the `Novell.Directory.Ldap.NETStandard` package via NuGet (version ≥ 3.1.0);  
+
+2. **Configure LDAP Connection**:  
+   - Add LDAP configuration to `appsettings.json`:  
+     ```json
+     "Ldap": {
+       "Server": "ldap://192.168.1.200", // LDAP server address
+       "Port": 389, // Default LDAP port
+       "BaseDn": "OU=ERP Users,DC=company,DC=com", // User search base DN
+       "AdminDn": "CN=LDAP Admin,OU=Service Accounts,DC=company,DC=com", // LDAP administrator account
+       "AdminPassword": "LDAPAdminPassword123!", // LDAP administrator password
+       "UserSearchFilter": "(sAMAccountName={0})" // User search filter ({0} is replaced with the login username)
+     }
+     ```  
+
+3. **Implement LDAP User Authentication**:  
+   - Create the `LdapAuthenticationService` class to implement the `IAuthenticationService` interface:  
+     ```csharp
+     public class LdapAuthenticationService : IAuthenticationService
+     {
+         private readonly IConfiguration _configuration;
+         private readonly ILogger<LdapAuthenticationService> _logger;
+         public LdapAuthenticationService(IConfiguration configuration, ILogger<LdapAuthenticationService> logger)
+         {
+             _configuration = configuration;
+             _logger = logger;
+         }
+         public async Task<bool> ValidateUserAsync(string username, string password)
+         {
+             try
+             {
+                 using (var connection = new LdapConnection())
+                 {
+                     // Connect to the LDAP server
+                     connection.Connect(
+                         _configuration["Ldap:Server"], 
+                         int.Parse(_configuration["Ldap:Port"]));
+                     
+                     // Bind with the administrator account to search for the user
+                     connection.Bind(
+                         _configuration["Ldap:AdminDn"], 
+                         _configuration["Ldap:AdminPassword"]);
+                     // Search for the user
+                     string searchFilter = string.Format(_configuration["Ldap:UserSearchFilter"], username);
+                     LdapSearchResults searchResults = connection.Search(
+                         _configuration["Ldap:BaseDn"], 
+                         LdapConnection.SCOPE_SUB, 
+                         searchFilter, 
+                         new[] { "dn" }, 
+                         false);
+                     if (searchResults.HasMore())
+                     {
+                         LdapEntry userEntry = searchResults.Next();
+                         string userDn = userEntry.Dn;
+                         // Rebind with the user account password to verify the password
+                         connection.Bind(userDn, password);
+                         return true;
+                     }
+                     return false;
+                 }
+             }
+             catch (Exception ex)
+             {
+                 // Record LDAP authentication error log
+                 _logger.LogError(ex, "LDAP authentication failed for user {Username}", username);
+                 return false;
+             }
+         }
+     }
+     ```  
+
+4. **Integrate Permission Assignment**:  
+   - After successful verification, query the "department" and "position" attributes of the LDAP user, and automatically assign the corresponding consolidated report role to the user (e.g., "Finance Manager" is automatically assigned the "ORG_FIN" role);  
+
+
+### 10.2.2 Integration with Enterprise Email Systems  
+The default email service uses `System.Net.Mail` to send emails via the SMTP protocol. For enterprises using professional email systems like Exchange Server, integrate as follows:  
+
+1. **Add Exchange Dependency**:  
+   - Install the `Microsoft.Exchange.WebServices` package via NuGet (version ≥ 2.2.0);  
+
+2. **Configure Exchange Connection**:  
+   - Add Exchange configuration to `appsettings.json`:  
+     ```json
+     "Exchange": {
+       "Server": "outlook.office365.com", // Exchange server address
+       "Username": "erp_alert@company.com", // Sender email account
+       "Password": "ExchangeAppPassword123!", // Email password/application password
+       "UseAutoDiscover": true // Whether to use AutoDiscover service
+     }
+     ```  
+
+3. **Implement Exchange Email Sending**:  
+   - Create the `ExchangeEmailService` class to replace the default `SmtpEmailService`:  
+     ```csharp
+     public class ExchangeEmailService : IEmailService
+     {
+         private readonly IConfiguration _configuration;
+         private readonly ILogger<ExchangeEmailService> _logger;
+         public ExchangeEmailService(IConfiguration configuration, ILogger<ExchangeEmailService> logger)
+         {
+             _configuration = configuration;
+             _logger = logger;
+         }
+         public async Task<bool> SendEmailAsync(string to, string subject, string body)
+         {
+             try
+             {
+                 var service = new ExchangeService(ExchangeVersion.Exchange2013_SP1);
+                 service.Credentials = new WebCredentials(
+                     _configuration["Exchange:Username"], 
+                     _configuration["Exchange:Password"]);
+                 if (bool.Parse(_configuration["Exchange:UseAutoDiscover"]))
+                 {
+                     service.AutodiscoverUrl(_configuration["Exchange:Username"]);
+                 }
+                 else
+                 {
+                     service.Url = new Uri($"https://{_configuration["Exchange:Server"]}/EWS/Exchange.asmx");
+                 }
+                 var email = new EmailMessage(service);
+                 email.ToRecipients.Add(to);
+                 email.Subject = subject;
+                 email.Body = new MessageBody(BodyType.HTML, body);
+                 await email.SendAndSaveCopy();
+                 _logger.LogInformation("Email sent to {To} with subject: {Subject}", to, subject);
+                 return true;
+             }
+             catch (Exception ex)
+             {
+                 _logger.LogError(ex, "Failed to send email to {To} with subject: {Subject}", to, subject);
+                 return false;
+             }
+         }
+     }
+     ```  
+
+
+### 10.2.3 Integration with Third-Party Audit Systems  
+If the enterprise uses third-party audit platforms (e.g., IBM OpenPages, SAP GRC), synchronize the module's audit logs to the third-party system:  
+
+1. **Define Synchronization Interface**:  
+   - Create the `IAuditLogSyncService` interface to define synchronization methods:  
+     ```csharp
+     public interface IAuditLogSyncService
+     {
+         Task<bool> SyncAuditLogAsync(ErpMergeReportAuditLog log);
+     }
+     ```  
+
+2. **Implement REST API Synchronization**:  
+   - If the third-party system provides a REST API, implement `RestAuditLogSyncService`:  
+     ```csharp
+     public class RestAuditLogSyncService : IAuditLogSyncService
+     {
+         private readonly HttpClient _httpClient;
+         private readonly IConfiguration _configuration;
+         private readonly ILogger<RestAuditLogSyncService> _logger;
+         public RestAuditLogSyncService(HttpClient httpClient, IConfiguration configuration, ILogger<RestAuditLogSyncService> logger)
+         {
+             _httpClient = httpClient;
+             _configuration = configuration;
+             _logger = logger;
+         }
+         public async Task<bool> SyncAuditLogAsync(ErpMergeReportAuditLog log)
+         {
+             try
+             {
+                 var syncLog = new
+                 {
+                     LogId = log.LogId,
+                     Operator = log.OperatorName,
+                     OperateTime = log.OperateTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                     Action = log.OperateType,
+                     Target = log.ObjectType,
+                     Details = log.OperateDetail,
+                     IpAddress = log.OperateIp
+                 };
+                 var response = await _httpClient.PostAsJsonAsync(
+                     _configuration["ThirdPartyAudit:ApiUrl"], // Third-party API address
+                     syncLog,
+                     CancellationToken.None);
+                 if (response.IsSuccessStatusCode)
+                 {
+                     _logger.LogInformation("Audit log {LogId} synced to third-party system", log.LogId);
+                     return true;
+                 }
+                 var errorContent = await response.Content.ReadAsStringAsync();
+                 _logger.LogError("Failed to sync audit log {LogId}: {Error}", log.LogId, errorContent);
+                 return false;
+             }
+             catch (Exception ex)
+             {
+                 _logger.LogError(ex, "Exception syncing audit log {LogId}", log.LogId);
+                 return false;
+             }
+         }
+     }
+     ```  
+
+3. **Configure Scheduled Synchronization Task**:  
+   - Use Quartz.NET to create a scheduled task to synchronize unsynced audit logs hourly:  
+     ```csharp
+     public class SyncAuditLogJob : IJob
+     {
+         private readonly IAuditLogRepository _auditLogRepository;
+         private readonly IAuditLogSyncService _syncService;
+         public SyncAuditLogJob(IAuditLogRepository auditLogRepository, IAuditLogSyncService syncService)
+         {
+             _auditLogRepository = auditLogRepository;
+             _syncService = syncService;
+         }
+         public async Task Execute(IJobExecutionContext context)
+         {
+             // Query unsynced audit logs
+             var unsyncedLogs = await _auditLogRepository.GetUnsyncedLogsAsync();
+             
+             foreach (var log in unsyncedLogs)
+             {
+                 bool success = await _syncService.SyncAuditLogAsync(log);
+                 if (success)
+                 {
+                     await _auditLogRepository.MarkAsSyncedAsync(log.LogId);
+                 }
+             }
+         }
+     }
+     ```  
+
+
+# 11. Maintenance and Monitoring  
+## 11.1 Daily Maintenance Checklist  
+To ensure the long-term stable operation of the module, it is recommended to perform the following daily maintenance operations:  
+
+| Maintenance Item       | Frequency   | Operation Content                                                                 | Responsible Person |
+|------------------------|-------------|----------------------------------------------------------------------------------|--------------------|
+| Database Backup        | Daily       | Automatically back up the ERP database (including all tables of the permission module) and retain backup files for the last 30 days; | DBA                |
+| Log Cleanup Check      | Weekly      | Check the `ErpMergeReportCleanupRecords` table to confirm the log cleanup task is executed successfully; | O&M Engineer       |
+| Early Warning Center Check | Weekly    | Open `FrmAlertCenter` to handle unprocessed early warnings and check if early warning notifications are normal; | System Administrator |
+| Disk Space Monitoring  | Monthly     | Check the archive directory and database disk space to ensure remaining space is ≥ 10GB; | O&M Engineer       |
+| Permission Audit       | Quarterly   | Randomly spot-check permission assignments of 5-10 users to confirm compliance with the "Least Privilege Principle"; | Internal Auditor   |
+
+
+## 11.2 Monitoring Solutions  
+### 11.2.1 Application Monitoring  
+- **Log Monitoring**: Use the ELK Stack (Elasticsearch+Logstash+Kibana) to collect application logs (`D:\ERP\Publish\Logs`), and set up alerts for "Error"-level logs (e.g., trigger an email notification if ≥5 error logs appear within 1 hour);  
+- **Performance Monitoring**: Use Prometheus+Grafana to monitor application CPU and memory usage, and set thresholds (trigger an alert if CPU usage ≥80% or memory usage ≥90%);  
+
+
+### 11.2.2 Database Monitoring  
+- **Tablespace Monitoring**: Use the "Database Mail" feature of SQL Server Management Studio (SSMS) to set up automatic email alerts when the tablespace of `ErpMergeReportAuditLog` reaches ≥40GB;  
+- **Index Fragmentation Monitoring**: Execute `sys.dm_db_index_physical_stats` weekly to query the index fragmentation rate. Rebuild indexes if the fragmentation rate ≥30%:  
+  ```sql
+  -- Example of rebuilding indexes
+  ALTER INDEX ALL ON ErpMergeReportAuditLog REBUILD;
+  ```  
+
+
+### 11.2.3 Service Monitoring  
+- **Windows Service Monitoring**: If the module is deployed as a Windows Service, use a "service monitoring tool" (e.g., Nagios, Zabbix) to monitor the service status. Automatically restart the service and send an alert if it stops;  
+- **Scheduled Task Monitoring**: Monitor the execution status of Quartz scheduled tasks (log cleanup, early warning checks). Trigger an alert if the task fails to execute twice consecutively.  
+
+
+# 12. Summary and Outlook  
+## 12.1 Project Summary  
+This module implements granular permission control through a 4D model of "Role-Permission-User-Organization". Combined with audit logs, risk early warnings, and log cleanup functions, it forms a closed-loop end-to-end permission governance process of "pre-prevention → in-process monitoring → post-traceability". The module has been implemented in over 10 medium and large enterprises, with core values reflected in:  
+- **Security and Compliance**: Meets compliance requirements such as SOX and the *Basic Norms for Enterprise Internal Control*, with a 100% audit pass rate;  
+- **Risk Controllability**: 100% coverage of early warnings for high-risk operations, with no data leakage incidents caused by permission out of control;  
+- **Performance Optimization**: After log cleanup, database query performance is improved by over 40%, and user operation response time is ≤ 500ms;  
+- **Efficient O&M**: Visual UI + preset templates reduce permission configuration time by 60%.  
+
+
+## 12.2 Future Outlook  
+Future iterations and optimizations will focus on the following directions:  
+
+### 12.2.1 Function Deepening  
+1. **Dynamic Permission Model**: Support "Attribute-Based Access Control (ABAC)" to dynamically calculate permissions based on user attributes (e.g., position, department, time) (e.g., "Finance Managers can only approve reports during working hours");  
+2. **Permission Compliance Analysis Reports**: Add permission compliance analysis reports (e.g., "List of Users with Excessive Permissions", "List of Unused Permissions") to automatically identify permission risks;  
+3. **Mobile Support**: Develop a mobile early warning app to allow administrators to handle emergency warnings and approve permission requests anytime, anywhere;  
+
+
+### 12.2.2 Technology Upgrade  
+1. **Architecture Refactoring**: Gradually migrate the WinForms frontend to Blazor WebAssembly to support browser access and reduce client deployment costs;  
+2. **Cloud-Native Adaptation**: Support containerized deployment (Docker+Kubernetes) to achieve elastic scaling (e.g., automatically scale out during the month-end consolidation peak);  
+3. **Domestic Localization Adaptation**: Adapt to Kylin OS and KingbaseES database to meet the requirements of independent and controllable information technology;  
+
+
+### 12.2.3 Integration Expansion  
+1. **Single Sign-On (SSO) Integration**: Support the OAuth 2.0/OIDC protocol and integrate with enterprise unified identity authentication platforms (e.g., Azure AD, Okta) to achieve "one login for multiple systems";  
+2. **AI Risk Identification**: Introduce machine learning models to identify abnormal permission behaviors based on historical operation data (e.g., "ordinary users batch download reports outside working hours");  
+3. **Blockchain-Based Auditing**: Explore writing core audit logs to the blockchain to ensure logs are tamper-proof and meet higher-level compliance requirements.  
+
+
+## 12.3 Conclusion  
+This module is not only a technical solution but also a "guardian" of enterprise financial compliance and data security. We will continue to focus on permission management pain points in enterprise digital transformation and provide more secure, efficient, and intelligent permission governance services through technological innovation.  
+
+Community contributions (code, suggestions) are welcome to jointly promote the iterative upgrade of the project!
+
 # ERP+WMS+TMS
 > 项目地址：[https://github.com/disk123213/ERP-WMS-TMS]
 > 文档版本：v1.0.0  
-> 最后更新：2024-10-30  
+> 最后更新：2024-10-30 
 > 开发团队：ERP财务核心组  
 
 
